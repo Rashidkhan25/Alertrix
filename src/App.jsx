@@ -1,9 +1,9 @@
-
+import Dashboard from "./pages/Dashboard"
 function App() {
 
   return (
     <>
-      <h1 class="text-5xl font-bold text-red-500">Tailwind Works!</h1>
+      <Dashboard></Dashboard>
     </>
   )
 }
