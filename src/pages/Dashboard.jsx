@@ -221,14 +221,11 @@ export default function DashboardPage() {
         <div className="mx-auto max-w-[1400px] px-4 py-2 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <VoiceAssistant musicPlayerRef={musicPlayerRef} />
-            <span className="text-sm text-[#E0FFFF]/80">Voice Assistant</span>
           </div>
           <div className="hidden md:flex items-center gap-2 text-[#E0FFFF]/90">
             <MusicPlayer ref={musicPlayerRef} />
           </div>
           <div className="flex items-center gap-2">
-            <BellRing className="text-[#FFC300]" />
-            <span className="text-sm text-[#E0FFFF]/90">Active Alerts</span>
           </div>
         </div>
         <div className="mx-auto max-w-[1400px] px-4 pb-3">

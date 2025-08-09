@@ -3,6 +3,8 @@ import SpeechRecognition, {
   useSpeechRecognition,
 } from "react-speech-recognition";
 import { getWeatherSummary } from "../panels/weather-panel"; // adjust path as needed
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faMicrophone, faRobot } from "@fortawesome/free-solid-svg-icons";
 
 export default function VoiceAssistant({ musicPlayerRef }) {
   const [activated, setActivated] = useState(false);
@@ -244,57 +246,62 @@ export default function VoiceAssistant({ musicPlayerRef }) {
       )}
 
       {!activated && (
-        <button
-          type="button"
-          style={{
-            position: "fixed",
-            bottom: 20,
-            right: 20,
-            background: "#0008",
-            color: "#00fff7",
-            padding: 12,
-            borderRadius: 30,
-            maxWidth: 280,
-            fontFamily: "sans-serif",
-            zIndex: 10000,
-            cursor: "pointer",
-            userSelect: "none",
-            border: "none",
-            fontSize: 14,
-            textAlign: "center",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-          onClick={() => {
-            setActivated(true);
-            resetTranscript();
-            speak("Hi, I'm Jarvis. How can I help you?");
-          }}
-          title="Click to activate Jarvis"
-        >
-          {/* Voice assistant SVG icon */}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            fill="none"
-            stroke="#00fff7"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            viewBox="0 0 24 24"
+        <div>
+          <button
+            type="button"
+            style={{
+              position: "fixed",
+              bottom: 20,
+              left: 50,
+              background: "#0008",
+              color: "#ffffff",
+              padding: 12,
+              borderRadius: 30,
+              maxWidth: 280,
+              fontFamily: "sans-serif",
+              zIndex: 10000,
+              cursor: "pointer",
+              userSelect: "none",
+              border: "none",
+              fontSize: 14,
+              textAlign: "center",
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+            }}
+            onClick={() => {
+              setActivated(true);
+              resetTranscript();
+              speak("Hi, I'm Jarvis. How can I help you?");
+            }}
+            title="Click to activate Jarvis"
           >
-            <path d="M12 1v10a4 4 0 0 1-8 0V1" />
-            <path d="M12 1v10a4 4 0 0 0 8 0V1" />
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-            <line x1="12" y1="19" x2="12" y2="23" />
-            <line x1="8" y1="23" x2="16" y2="23" />
-            <path d="M20 5c1 1 1 3 0 4" />
-            <path d="M22 3c2 2 2 6 0 8" />
-          </svg>
-          
-        </button>
+            <FontAwesomeIcon icon={faMicrophone} />
+          </button>
+          <p
+            style={{
+              position: "fixed",
+              bottom: 17,
+              left: 85,
+              color: "#00fff7",
+              padding: 12,
+              borderRadius: 30,
+              maxWidth: 280,
+              fontFamily: "sans-serif",
+              zIndex: 10000,
+              cursor: "pointer",
+              userSelect: "none",
+              border: "none",
+              fontSize: 14,
+              textAlign: "center",
+              display: "flex",
+              alignItems: "center",
+            
+            }}
+          >
+            Voice Assistant
+          </p>
+        </div>
       )}
 
       <style>{`

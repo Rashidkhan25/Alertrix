@@ -136,7 +136,7 @@ const MusicPlayer = forwardRef((props, ref) => {
             cursor: "pointer",
             border: "none",
             background: "none",
-            color: "#00fff7",
+            color: "#ffffff",
             fontSize: 24, // slightly smaller button font size
             display: "flex",
             alignItems: "center",
@@ -159,11 +159,11 @@ const MusicPlayer = forwardRef((props, ref) => {
             style={{
               fontWeight: 700,
               fontSize: 14, // smaller font size
-    
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
-              textShadow: "0 0 5px #00fff7",
+              textShadow: "0 0 5px #ffffff",
+              color: "#ffffff",
             }}
             title="Cheap Thrills - Sia"
           >
