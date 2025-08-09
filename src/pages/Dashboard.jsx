@@ -224,6 +224,9 @@ export default function DashboardPage() {
             <span className="text-sm text-[#E0FFFF]/90">Active Alerts</span>
           </div>
         </div>
+        <div className="mx-auto max-w-[1400px] px-4 pb-3">
+          <AlertsDisplay alerts={alerts} />
+        </div>
       </footer>
     </div>
   );
