@@ -1,64 +1,69 @@
-
-import { useCallback, useEffect, useRef, useState } from "react"
-import { motion } from "framer-motion"
-import { Card } from "@/components/ui/card"
-import { Map, CloudSun, Webcam, BellRing, Gauge } from 'lucide-react'
-import Speedometer3D from "@/components/hud/speedometer-3d"
-import FocusMeter from "@/components/hud/focus-meter"
-import WeatherPanel from "@/components/panels/weather-panel"
-import TrafficPanel from "@/components/panels/traffic-panel"
-import TimePanel from "@/components/panels/time-panel"
-import NavigationMap from "@/components/map/navigation-map"
-import VoiceAssistant from "@/components/voice/voice-assistant"
-import AlertsDisplay from "@/components/alerts/alerts-display"
-import WebcamPreview from "@/components/media/webcam-preview"
-import TopNav from "@/components/layout/top-nav"
-import WeatherFX from "@/components/visuals/weather-fx"
-import WeatherBackground from "@/components/visuals/weather-background"
+import { useCallback, useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import { Card } from "@/components/ui/card";
+import { Map, CloudSun, Webcam, BellRing, Gauge } from "lucide-react";
+import Speedometer3D from "@/components/hud/speedometer-3d";
+import FocusMeter from "@/components/hud/focus-meter";
+import WeatherPanel from "@/components/panels/weather-panel";
+import TrafficPanel from "@/components/panels/traffic-panel";
+import TimePanel from "@/components/panels/time-panel";
+import NavigationMap from "@/components/map/navigation-map";
+import VoiceAssistant from "@/components/voice/voice-assistant";
+import AlertsDisplay from "@/components/alerts/alerts-display";
+import WebcamPreview from "@/components/media/webcam-preview";
+import TopNav from "@/components/layout/top-nav";
+import WeatherFX from "@/components/visuals/weather-fx";
+import WeatherBackground from "@/components/visuals/weather-background";
 import MusicPlayer from "@/components/voice/Music-player";
 
 export default function DashboardPage() {
-  const [speed, setSpeed] = useState(48)
-  const [focus, setFocus] = useState(82)
+  const [speed, setSpeed] = useState(48);
+  const [focus, setFocus] = useState(82);
   const musicPlayerRef = useRef(null);
-  const [showTraffic, setShowTraffic] = useState(true)
-  const [expandWeather, setExpandWeather] = useState(true)
-  const [alerts, setAlerts] = useState([])
-  const [weatherKind, setWeatherKind] = useState("clear")
+  const [showTraffic, setShowTraffic] = useState(true);
+  const [expandWeather, setExpandWeather] = useState(true);
+  const [alerts, setAlerts] = useState([]);
+  const [weatherKind, setWeatherKind] = useState("clear");
   // Default to black background on first load
-  const [useDarkBackground, setUseDarkBackground] = useState(true)
+  const [useDarkBackground, setUseDarkBackground] = useState(true);
 
   useEffect(() => {
     const load = () => {
       try {
-        const s = JSON.parse(localStorage.getItem("ai-copilot:settings") || "{}")
+        const s = JSON.parse(
+          localStorage.getItem("ai-copilot:settings") || "{}"
+        );
         // Support new backgroundMode and legacy boolean
         if (s?.backgroundMode) {
-          setUseDarkBackground(s.backgroundMode === "black")
+          setUseDarkBackground(s.backgroundMode === "black");
         } else {
-          setUseDarkBackground(s?.useDarkBackground !== false) // default true
+          setUseDarkBackground(s?.useDarkBackground !== false); // default true
         }
       } catch {}
-    }
-    load()
+    };
+    load();
     const onStorage = (e) => {
-      if (e.key === "ai-copilot:settings") load()
-    }
-    window.addEventListener("storage", onStorage)
-    return () => window.removeEventListener("storage", onStorage)
-  }, [])
+      if (e.key === "ai-copilot:settings") load();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   useEffect(() => {
     const id = setInterval(() => {
-      setSpeed((s) => Math.round(Math.max(0, Math.min(160, s + (Math.random() * 12 - 6)))))
-      setFocus((f) => Math.round(Math.max(0, Math.min(100, f + (Math.random() * 8 - 4)))))
-    }, 1400)
-    return () => clearInterval(id)
-  }, [])
+      setSpeed((s) =>
+        Math.round(Math.max(0, Math.min(160, s + (Math.random() * 12 - 6))))
+      );
+      setFocus((f) =>
+        Math.round(Math.max(0, Math.min(100, f + (Math.random() * 8 - 4))))
+      );
+    }, 1400);
+    return () => clearInterval(id);
+  }, []);
 
   const handleCommand = (cmd) => {
-    if (cmd === "show weather") setExpandWeather(true)
-    if (cmd === "show traffic") setShowTraffic(true)
+    if (cmd === "show weather") setExpandWeather(true);
+    if (cmd === "show traffic") setShowTraffic(true);
     if (cmd === "alert test") {
       triggerAlert({
         id: Date.now().toString(),
@@ -66,23 +71,24 @@ export default function DashboardPage() {
         message: "Drowsiness detected: Take a break",
         severity: "high",
         time: new Date().toLocaleTimeString(),
-      })
+      });
     }
-  }
+  };
 
-  const triggerAlert = (alert) => setAlerts((prev) => [alert, ...prev].slice(0, 5))
+  const triggerAlert = (alert) =>
+    setAlerts((prev) => [alert, ...prev].slice(0, 5));
 
-  const lastLowRef = useRef(0)
+  const lastLowRef = useRef(0);
   useEffect(() => {
     if (focus < 35 && Date.now() - lastLowRef.current > 15000) {
-      lastLowRef.current = Date.now()
+      lastLowRef.current = Date.now();
       triggerAlert({
         id: Date.now().toString(),
         type: "drowsiness",
         message: "Low focus level detected",
         severity: "high",
         time: new Date().toLocaleTimeString(),
-      })
+      });
     } else if (focus < 55 && Math.random() < 0.12) {
       triggerAlert({
         id: Date.now().toString(),
@@ -90,19 +96,20 @@ export default function DashboardPage() {
         message: "Keep your eyes on the road",
         severity: "medium",
         time: new Date().toLocaleTimeString(),
-      })
+      });
     }
-  }, [focus])
+  }, [focus]);
 
-  const handleWeatherKind = useCallback((k) => setWeatherKind(k), [])
-  const hours = new Date().getHours()
-  const isDay = hours >= 7 && hours < 19
+  const handleWeatherKind = useCallback((k) => setWeatherKind(k), []);
+  const hours = new Date().getHours();
+  const isDay = hours >= 7 && hours < 19;
 
   const panelStyle = {
     background: "#1A1A1D",
-    boxShadow: "0 0 10px rgba(0,255,247,0.15), inset 0 0 24px rgba(31,81,255,0.08)",
+    boxShadow:
+      "0 0 10px rgba(0,255,247,0.15), inset 0 0 24px rgba(31,81,255,0.08)",
     borderColor: "rgba(0,255,247,0.15)",
-  }
+  };
 
   return (
     <div className="relative min-h-screen w-full flex flex-col">
@@ -224,6 +231,9 @@ export default function DashboardPage() {
             <span className="text-sm text-[#E0FFFF]/90">Active Alerts</span>
           </div>
         </div>
+        {/* <div className="mx-auto max-w-[1400px] px-4 pb-3">
+          <AlertsDisplay alerts={alerts} />
+        </div> */}
       </footer>
     </div>
   );

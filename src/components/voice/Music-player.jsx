@@ -84,7 +84,7 @@ const MusicPlayer = forwardRef((props, ref) => {
 
   return (
     <>
-      {/* your existing styles */}
+      {/* Neon cyan slider thumb styles */}
       <style>{`
         input[type="range"]::-webkit-slider-thumb {
           -webkit-appearance: none;
@@ -92,20 +92,28 @@ const MusicPlayer = forwardRef((props, ref) => {
           width: 14px;
           height: 14px;
           border-radius: 50%;
-          background: white !important;
+          background: #00fff7;
           cursor: pointer;
-          box-shadow: 0 0 4px rgba(255, 255, 255, 0.7);
+          box-shadow: 0 0 8px #00fff7, 0 0 12px #00fff7;
           border: none;
-          margin-top: -5px;
+         
+          transition: box-shadow 0.3s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+          box-shadow: 0 0 16px #00fff7, 0 0 24px #00fff7;
         }
         input[type="range"]::-moz-range-thumb {
           width: 14px;
           height: 14px;
           border-radius: 50%;
-          background: white !important;
+          background: #00fff7;
           cursor: pointer;
-          box-shadow: 0 0 4px rgba(255, 255, 255, 0.7);
+          box-shadow: 0 0 8px #00fff7, 0 0 12px #00fff7;
           border: none;
+          transition: box-shadow 0.3s ease;
+        }
+        input[type="range"]::-moz-range-thumb:hover {
+          box-shadow: 0 0 16px #00fff7, 0 0 24px #00fff7;
         }
       `}</style>
 
@@ -113,12 +121,12 @@ const MusicPlayer = forwardRef((props, ref) => {
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 12,
-          width: 300,
-          padding: 12,
+          gap: 15,
+          width: 280, // reduced from 320
           borderRadius: 10,
-          color: "#fff",
+          color: "#00fff7",
           fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+          userSelect: "none",
         }}
       >
         <button
@@ -128,18 +136,19 @@ const MusicPlayer = forwardRef((props, ref) => {
             cursor: "pointer",
             border: "none",
             background: "none",
-            color: "#fff",
-            fontSize: 26,
+            color: "#00fff7",
+            fontSize: 24, // slightly smaller button font size
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 44,
-            height: 44,
+            width: 40, // smaller button size
+            height: 40,
             borderRadius: "50%",
             boxShadow: playing
-              ? "0 0 12px #ffffff"
-              : "0 0 4px rgba(0, 0, 0, 0)",
+              ? "0 0 16px #00fff7, 0 0 24px #00fff7"
+              : "0 0 6px rgba(0, 255, 247, 0.4)",
             transition: "box-shadow 0.3s ease",
+            userSelect: "none",
           }}
         >
           {playing ? "❚❚" : "▶"}
@@ -148,12 +157,13 @@ const MusicPlayer = forwardRef((props, ref) => {
         <div style={{ flexGrow: 1 }}>
           <div
             style={{
-              fontWeight: 600,
-              fontSize: 14,
-              marginBottom: 4,
+              fontWeight: 700,
+              fontSize: 14, // smaller font size
+    
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
+              textShadow: "0 0 5px #00fff7",
             }}
             title="Cheap Thrills - Sia"
           >
@@ -170,14 +180,13 @@ const MusicPlayer = forwardRef((props, ref) => {
               width: "100%",
               cursor: "pointer",
               appearance: "none",
-              height: 5,
+              height: 3, // thinner slider track
               borderRadius: 3,
-              background:
-                "linear-gradient(90deg, #ffffff " +
-                ((progress / duration) * 100 || 0) +
-                "%, #404040 " +
-                ((progress / duration) * 100 || 0) +
-                "%)",
+              background: `linear-gradient(90deg, #00fff7 ${
+                (progress / duration) * 100 || 0
+              }%, #002f33 ${(progress / duration) * 100 || 0}%)`,
+              boxShadow: "inset 0 0 8px #00fff7",
+              outline: "none",
             }}
           />
 
@@ -185,9 +194,9 @@ const MusicPlayer = forwardRef((props, ref) => {
             style={{
               display: "flex",
               justifyContent: "space-between",
-              fontSize: 11,
-              marginTop: 3,
-              color: "#b3b3b3",
+              fontSize: 11, // smaller time font size
+              color: "#00fff7aa",
+              textShadow: "0 0 5px #00fff7aa",
             }}
           >
             <span>{formatTime(progress)}</span>

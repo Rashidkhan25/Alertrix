@@ -191,6 +191,24 @@ export default function VoiceAssistant({ musicPlayerRef }) {
 
   return (
     <>
+      {/* New full screen black overlay behind everything when activated */}
+      {activated && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            top: -670,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            backgroundColor: "rgba(10, 9, 9, 0.9)",
+            backdropFilter: "blur(10px)",
+            zIndex: 9997,
+            pointerEvents: "none",
+          }}
+        />
+      )}
+
       {activated && (
         <div
           aria-hidden="true"
@@ -203,33 +221,6 @@ export default function VoiceAssistant({ musicPlayerRef }) {
         />
       )}
 
-      {!activated && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 20,
-            right: 20,
-            background: "#0008",
-            color: "#fff",
-            padding: 12,
-            borderRadius: 8,
-            maxWidth: 280,
-            fontFamily: "sans-serif",
-            zIndex: 10000,
-            cursor: "pointer",
-            userSelect: "none",
-          }}
-          onClick={() => {
-            setActivated(true);
-            resetTranscript();
-            speak("Hi, I'm Jarvis. How can I help you?");
-          }}
-          title="Click to activate Jarvis"
-        >
-          Say "Jarvis" or click here to activate
-        </div>
-      )}
-
       {activated && (
         <div
           aria-label="Voice assistant listening indicator"
@@ -237,7 +228,7 @@ export default function VoiceAssistant({ musicPlayerRef }) {
             position: "fixed",
             top: "50%",
             left: "50%",
-            transform: "translate(-50%, -300%)",
+            transform: "translate(-50%, -275%)",
             width: 160,
             height: 160,
             borderRadius: "50%",
@@ -250,6 +241,60 @@ export default function VoiceAssistant({ musicPlayerRef }) {
             pointerEvents: "none",
           }}
         />
+      )}
+
+      {!activated && (
+        <button
+          type="button"
+          style={{
+            position: "fixed",
+            bottom: 20,
+            right: 20,
+            background: "#0008",
+            color: "#00fff7",
+            padding: 12,
+            borderRadius: 30,
+            maxWidth: 280,
+            fontFamily: "sans-serif",
+            zIndex: 10000,
+            cursor: "pointer",
+            userSelect: "none",
+            border: "none",
+            fontSize: 14,
+            textAlign: "center",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+          onClick={() => {
+            setActivated(true);
+            resetTranscript();
+            speak("Hi, I'm Jarvis. How can I help you?");
+          }}
+          title="Click to activate Jarvis"
+        >
+          {/* Voice assistant SVG icon */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            fill="none"
+            stroke="#00fff7"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            viewBox="0 0 24 24"
+          >
+            <path d="M12 1v10a4 4 0 0 1-8 0V1" />
+            <path d="M12 1v10a4 4 0 0 0 8 0V1" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="23" />
+            <line x1="8" y1="23" x2="16" y2="23" />
+            <path d="M20 5c1 1 1 3 0 4" />
+            <path d="M22 3c2 2 2 6 0 8" />
+          </svg>
+          
+        </button>
       )}
 
       <style>{`
