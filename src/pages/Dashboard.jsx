@@ -26,19 +26,20 @@ export default function DashboardPage() {
   const [weatherKind, setWeatherKind] = useState("clear");
   // Default to black background on first load
   const [useDarkBackground, setUseDarkBackground] = useState(true);
+  // New state for alerts enabled (default to true)
+  const [alertsEnabled, setAlertsEnabled] = useState(true);
 
   useEffect(() => {
     const load = () => {
       try {
-        const s = JSON.parse(
-          localStorage.getItem("ai-copilot:settings") || "{}"
-        );
-        // Support new backgroundMode and legacy boolean
+        const s = JSON.parse(localStorage.getItem("ai-copilot:settings") || "{}");
         if (s?.backgroundMode) {
           setUseDarkBackground(s.backgroundMode === "black");
         } else {
           setUseDarkBackground(s?.useDarkBackground !== false); // default true
         }
+        // Load alertsEnabled setting, default true if missing
+        setAlertsEnabled(s.alertsEnabled !== false);
       } catch {}
     };
     load();
@@ -65,6 +66,7 @@ export default function DashboardPage() {
     if (cmd === "show weather") setExpandWeather(true);
     if (cmd === "show traffic") setShowTraffic(true);
     if (cmd === "alert test") {
+      if (!alertsEnabled) return; // Don't trigger if alerts disabled
       triggerAlert({
         id: Date.now().toString(),
         type: "drowsiness",
@@ -75,11 +77,14 @@ export default function DashboardPage() {
     }
   };
 
-  const triggerAlert = (alert) =>
+  const triggerAlert = (alert) => {
+    if (!alertsEnabled) return; // Skip adding alert if disabled
     setAlerts((prev) => [alert, ...prev].slice(0, 5));
+  };
 
   const lastLowRef = useRef(0);
   useEffect(() => {
+    if (!alertsEnabled) return; // no alerts if disabled
     if (focus < 35 && Date.now() - lastLowRef.current > 15000) {
       lastLowRef.current = Date.now();
       triggerAlert({
@@ -98,7 +103,7 @@ export default function DashboardPage() {
         time: new Date().toLocaleTimeString(),
       });
     }
-  }, [focus]);
+  }, [focus, alertsEnabled]);
 
   const handleWeatherKind = useCallback((k) => setWeatherKind(k), []);
   const hours = new Date().getHours();
@@ -225,11 +230,11 @@ export default function DashboardPage() {
           <div className="hidden md:flex items-center gap-2 text-[#E0FFFF]/90">
             <MusicPlayer ref={musicPlayerRef} />
           </div>
-          <div className="flex items-center gap-2">
-          </div>
+          <div className="flex items-center gap-2"></div>
         </div>
         <div className="mx-auto max-w-[1400px] px-4 pb-3">
-          <AlertsDisplay alerts={alerts} />
+          {/* Only render alerts if enabled */}
+          {alertsEnabled && <AlertsDisplay alerts={alerts} />}
         </div>
       </footer>
     </div>
