@@ -3,13 +3,15 @@ import { createPortal } from "react-dom";
 
 export default function CarVoiceAssistant() {
   const recognitionRef = useRef(null);
-  const hideTimeoutRef = useRef(null);     // 3-sec hide after command
-  const waitTimeoutRef = useRef(null);     // 4-sec wait for follow-up after wake word
+  const hideTimeoutRef = useRef(null);
+  const waitTimeoutRef = useRef(null);
   const [waitingForCommand, setWaitingForCommand] = useState(false);
   const [listening, setListening] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
 
+  // Inject keyframes for floating animation
   useEffect(() => {
-    // Inject keyframe styles once when component mounts
     const styleSheet = `
       @keyframes floatMove {
         0% { transform: translate(0, 0); }
@@ -22,15 +24,18 @@ export default function CarVoiceAssistant() {
     const styleTag = document.createElement("style");
     styleTag.textContent = styleSheet;
     document.head.appendChild(styleTag);
-    return () => {
-      document.head.removeChild(styleTag);
-    };
+    return () => document.head.removeChild(styleTag);
   }, []);
 
   useEffect(() => {
+    if (!started) return; // Wait for user to click start
+
+    if (permissionDenied) return; // Stop if permission denied
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert("Speech Recognition not supported in your browser");
+      setStarted(false);
       return;
     }
 
@@ -52,13 +57,11 @@ export default function CarVoiceAssistant() {
       }
       setListening(false);
       setWaitingForCommand(false);
-      console.log("UI hidden, states reset");
     };
 
     const startHideTimeout = () => {
       if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
       hideTimeoutRef.current = setTimeout(() => {
-        console.log("3-sec hide timeout after command, hiding UI");
         clearAllTimeoutsAndHide();
       }, 3000);
     };
@@ -66,7 +69,6 @@ export default function CarVoiceAssistant() {
     const startWaitForCommandTimeout = () => {
       if (waitTimeoutRef.current) clearTimeout(waitTimeoutRef.current);
       waitTimeoutRef.current = setTimeout(() => {
-        console.log("4-sec wait for follow-up expired, hiding UI");
         clearAllTimeoutsAndHide();
       }, 4000);
     };
@@ -95,7 +97,6 @@ export default function CarVoiceAssistant() {
         try {
           rec.start();
           isRecognizing = true;
-          console.log("Recognition started");
         } catch (e) {
           console.warn("Recognition start error:", e.message);
         }
@@ -104,17 +105,26 @@ export default function CarVoiceAssistant() {
 
     rec.onstart = () => {
       isRecognizing = true;
-      console.log("Recognition event: started");
+      setListening(true);
     };
 
     rec.onend = () => {
       isRecognizing = false;
-      console.log("Recognition event: ended, restarting...");
-      startRecognition();
+      if (!permissionDenied) {
+        startRecognition();
+      }
     };
 
     rec.onerror = (e) => {
       console.error("Recognition error:", e.error);
+      if (e.error === "not-allowed") {
+        setPermissionDenied(true);
+        setStarted(false);
+        clearAllTimeoutsAndHide();
+        alert(
+          "Microphone permission denied. Please allow microphone access and restart Jarvis."
+        );
+      }
       if (e.error === "no-speech" || e.error === "aborted") {
         if (isRecognizing) {
           try {
@@ -130,7 +140,6 @@ export default function CarVoiceAssistant() {
 
     rec.onresult = (e) => {
       const transcript = e.results[e.results.length - 1][0].transcript.toLowerCase().trim();
-
       console.log("Heard:", transcript);
 
       if (hideTimeoutRef.current) {
@@ -185,7 +194,7 @@ export default function CarVoiceAssistant() {
       }
       clearAllTimeoutsAndHide();
     };
-  }, [waitingForCommand]);
+  }, [waitingForCommand, started, permissionDenied]);
 
   const handleCommand = (text) => {
     if (text.includes("play music")) {
@@ -216,6 +225,23 @@ export default function CarVoiceAssistant() {
 
   return (
     <>
+      {!started && !permissionDenied && (
+        <button
+          style={{
+            position: "fixed",
+            top: 20,
+            right: 20,
+            zIndex: 10000,
+            padding: "10px 20px",
+            fontSize: "16px",
+            cursor: "pointer",
+          }}
+          onClick={() => setStarted(true)}
+        >
+          Start Jarvis
+        </button>
+      )}
+
       {listening &&
         createPortal(
           <div style={overlayStyle}>
@@ -223,6 +249,12 @@ export default function CarVoiceAssistant() {
           </div>,
           document.body
         )}
+
+      {permissionDenied && (
+        <div style={permissionDeniedStyle}>
+          Microphone permission denied. Please allow access and reload the page.
+        </div>
+      )}
     </>
   );
 }
@@ -249,4 +281,17 @@ const floatingCircleStyle = {
   boxShadow:
     "0 0 30px #4cafef, inset 5px 5px 15px #60a0ff, inset -5px -5px 15px #0050a0",
   animation: "floatMove 6s ease-in-out infinite",
+};
+
+const permissionDeniedStyle = {
+  position: "fixed",
+  bottom: 20,
+  left: "50%",
+  transform: "translateX(-50%)",
+  backgroundColor: "#ff4444",
+  color: "#fff",
+  padding: "10px 20px",
+  borderRadius: "6px",
+  zIndex: 10000,
+  fontWeight: "bold",
 };
