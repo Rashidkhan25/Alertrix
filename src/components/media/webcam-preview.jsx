@@ -4,26 +4,35 @@ import FocusMeter from "../hud/focus-meter";
 export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const lastEarRef = useRef(null);
+  const lastFocusPercentRef = useRef(null);
+
+  const STABLE_TIME_MS = 2000; // 2 seconds stable time required
+  const BLINK_MAX_FRAMES = 12; // max frames considered as a blink (~400ms at 30fps)
+  const MAX_CLOSED_FRAMES = 30 * 10; // 10 seconds max closed eye duration
+
   const [status, setStatus] = useState("Loading...");
   const [isAlertActive, setIsAlertActive] = useState(false);
 
   const EAR_THRESHOLD_LOW = 0.25;
   const EAR_THRESHOLD_HIGH = 0.28;
-  const YAWN_THRESHOLD_LOW = 0.75;
-  const YAWN_THRESHOLD_HIGH = 0.65;
 
   const CLOSED_EYE_FRAME_5S = 30 * 2;
   const CLOSED_EYE_FRAME_10S = 30 * 4;
+
+  // Yawning detection thresholds
+  const MAR_THRESHOLD = 0.6; // mouth aspect ratio threshold for yawning
+  const YAWN_FRAME_THRESHOLD = 15; // frames required to confirm yawning (~0.5s at 30fps)
 
   const closedEyeFrames = useRef(0);
   const eyeAlertSpoken = useRef(false);
   const sirenPlaying = useRef(false);
   const sirenAudioRef = useRef(null);
+
+  const yawnFrames = useRef(0);
   const yawnAlertSpoken = useRef(false);
-  const noFaceAlertSpoken = useRef(false);
 
   const earBuffer = useRef([]);
-  const marBuffer = useRef([]);
 
   function distance(a, b) {
     return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
@@ -48,54 +57,21 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
   }
 
   function calculateMAR(landmarks) {
-    const leftCorner = landmarks[61];
-    const rightCorner = landmarks[291];
-    const upperLipTop = landmarks[13];
-    const lowerLipBottom = landmarks[14];
-    const upperInnerLip = landmarks[78];
-    const lowerInnerLip = landmarks[308];
+    // Mouth landmarks indices for MAR calculation
+    const p61 = landmarks[61];
+    const p291 = landmarks[291];
+    const p78 = landmarks[78];
+    const p308 = landmarks[308];
+    const p13 = landmarks[13];
+    const p14 = landmarks[14];
+    const p311 = landmarks[311];
+    const p81 = landmarks[81];
 
-    const horizontal = distance(leftCorner, rightCorner);
-    const vertical1 = distance(upperLipTop, lowerLipBottom);
-    const vertical2 = distance(upperInnerLip, lowerInnerLip);
-    const vertical = (vertical1 + vertical2) / 2;
+    const vertical1 = distance(p13, p14);
+    const vertical2 = (distance(p61, p311) + distance(p291, p81)) / 2;
+    const horizontal = distance(p78, p308);
 
-    return vertical / horizontal;
-  }
-
-  // Calculate approximate yaw angle in degrees:
-  // We'll use nose tip (landmark 1), left eye (33), right eye (263)
-  // Calculate angle based on horizontal distances:
-  function calculateYawAngle(landmarks) {
-    const nose = landmarks[1]; // nose tip
-    const leftEye = landmarks[33];
-    const rightEye = landmarks[263];
-
-    // Midpoint between eyes
-    const midX = (leftEye.x + rightEye.x) / 2;
-    const midY = (leftEye.y + rightEye.y) / 2;
-
-    // horizontal offset from nose to midpoint
-    const dx = nose.x - midX;
-    const dy = nose.y - midY;
-
-    // Use atan2 to get angle
-    const angleRad = Math.atan2(dy, dx);
-    const angleDeg = (angleRad * 180) / Math.PI;
-
-    // The angle here is relative horizontal, but we care mostly about yaw left-right.
-    // Since face turning left moves nose tip right relative to eyes midpoint (depending on camera), we'll flip sign:
-    // After some testing, just use dx * -1 to approximate yaw:
-    const yawDeg = -dx * 180; // scale for intuition, not precise but good for threshold
-
-    return yawDeg;
-  }
-
-  function speak(text) {
-    if (!window.speechSynthesis) return;
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
-    window.speechSynthesis.speak(utterance);
+    return (vertical1 + vertical2) / (2.0 * horizontal);
   }
 
   function earToFocusPercent(ear) {
@@ -104,6 +80,13 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
     const clampedEAR = Math.min(Math.max(ear, minEAR), maxEAR);
     const normalized = (clampedEAR - minEAR) / (maxEAR - minEAR);
     return Math.round(normalized * 100);
+  }
+
+  function speak(text) {
+    if (!window.speechSynthesis) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1;
+    window.speechSynthesis.speak(utterance);
   }
 
   useEffect(() => {
@@ -190,173 +173,174 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         const landmarks = results.multiFaceLandmarks[0];
 
-        // Calculate yaw angle
-        const yaw = calculateYawAngle(landmarks);
-        // console.log("Yaw angle:", yaw);
+        const leftEAR = calculateEAR(landmarks, true);
+        const rightEAR = calculateEAR(landmarks, false);
+        const currentEAR = (leftEAR + rightEAR) / 2;
 
-        // Only allow alerts if yaw is beyond ±90°
-        const isYawOutsideThreshold = Math.abs(yaw) > 90;
+        if (earBuffer.current.length >= 5) earBuffer.current.shift();
+        earBuffer.current.push(currentEAR);
 
-        if (!isYawOutsideThreshold) {
-          // Face detected and facing mostly front, clear noFace alert flags
-          noFaceAlertSpoken.current = false;
+        const smoothEAR = average(earBuffer.current);
+
+        // Yawning detection
+        const mar = calculateMAR(landmarks);
+
+        if (mar > MAR_THRESHOLD) {
+          yawnFrames.current += 1;
+        } else {
+          yawnFrames.current = 0;
+          yawnAlertSpoken.current = false;
         }
 
-        // If yaw inside threshold, consider face detected
-        if (!isYawOutsideThreshold) {
-          // --- Existing face detection logic ---
+        // Track closed eye frames for drowsiness detection
+        if (smoothEAR < EAR_THRESHOLD_LOW) {
+          closedEyeFrames.current += 1;
+        } else if (smoothEAR > EAR_THRESHOLD_HIGH) {
+          closedEyeFrames.current = 0;
+          eyeAlertSpoken.current = false;
 
-          closedEyeFrames.current = closedEyeFrames.current || 0; // safety init
+          if (sirenPlaying.current && sirenAudioRef.current) {
+            sirenAudioRef.current.pause();
+            sirenPlaying.current = false;
+            setIsAlertActive(false);
+          }
+        }
 
-          const leftEAR = calculateEAR(landmarks, true);
-          const rightEAR = calculateEAR(landmarks, false);
-          const currentEAR = (leftEAR + rightEAR) / 2;
+        // --- Focus percent smoothing logic with blink ignored ---
+        const focusPercentRaw = earToFocusPercent(smoothEAR);
+        const alpha = 0.1; // smoothing factor
 
-          const currentMAR = calculateMAR(landmarks);
+        if (lastFocusPercentRef.current === null) {
+          lastFocusPercentRef.current = focusPercentRaw;
+        } else {
+          if (closedEyeFrames.current <= BLINK_MAX_FRAMES) {
+            // Blink detected: do NOT decrease focus, gently recover focus towards 100%
+            lastFocusPercentRef.current =
+              lastFocusPercentRef.current * (1 - alpha) + 100 * alpha;
+          } else {
+            // Eyes closed longer than blink threshold: smooth focus towards EAR%
+            lastFocusPercentRef.current =
+              lastFocusPercentRef.current * (1 - alpha) +
+              focusPercentRaw * alpha;
+          }
+        }
 
-          if (earBuffer.current.length >= 5) earBuffer.current.shift();
-          earBuffer.current.push(currentEAR);
+        const finalFocusPercent = Math.round(lastFocusPercentRef.current);
 
-          if (marBuffer.current.length >= 5) marBuffer.current.shift();
-          marBuffer.current.push(currentMAR);
+        if (onFocusChange) {
+          onFocusChange(finalFocusPercent);
+        }
+        // --- end updated focus logic ---
 
-          const smoothEAR = average(earBuffer.current);
-          const smoothMAR = average(marBuffer.current);
+        // Update status messages and alerts based on closed eye duration
+        if (closedEyeFrames.current > BLINK_MAX_FRAMES) {
+          if (
+            closedEyeFrames.current >= CLOSED_EYE_FRAME_5S &&
+            closedEyeFrames.current < CLOSED_EYE_FRAME_10S
+          ) {
+            setStatus("Sleepy 😴 (Eyes closed 5+ seconds)");
 
-          const focusPercent = earToFocusPercent(smoothEAR);
-          if (onFocusChange) onFocusChange(focusPercent);
+            if (!eyeAlertSpoken.current) {
+              speak("Stay with me");
+              eyeAlertSpoken.current = true;
 
-          if (smoothEAR < EAR_THRESHOLD_LOW) {
-            closedEyeFrames.current += 1;
-
-            if (
-              closedEyeFrames.current >= CLOSED_EYE_FRAME_5S &&
-              closedEyeFrames.current < CLOSED_EYE_FRAME_10S
-            ) {
-              setStatus("Sleepy 😴 (Eyes closed 5+ seconds)");
-
-              if (!eyeAlertSpoken.current) {
-                speak("Stay with me");
-                eyeAlertSpoken.current = true;
-
-                if (onDrowsinessAlert) {
-                  onDrowsinessAlert({
-                    id: Date.now().toString(),
-                    type: "drowsiness",
-                    message: "Drowsiness detected: Eyes closed for 5+ seconds",
-                    severity: "high",
-                    time: new Date().toLocaleTimeString(),
-                  });
-                }
-              }
-              if (sirenPlaying.current && sirenAudioRef.current) {
-                sirenAudioRef.current.pause();
-                sirenPlaying.current = false;
-                setIsAlertActive(false);
-              }
-            } else if (closedEyeFrames.current >= CLOSED_EYE_FRAME_10S) {
-              setStatus("Very Sleepy! Siren ON 🚨");
-
-              if (!sirenPlaying.current && sirenAudioRef.current) {
-                sirenAudioRef.current.play().catch(() => {});
-                sirenPlaying.current = true;
-                setIsAlertActive(true);
-
-                if (onDrowsinessAlert) {
-                  onDrowsinessAlert({
-                    id: Date.now().toString(),
-                    type: "drowsiness",
-                    message:
-                      "Drowsiness detected: Eyes closed for 10+ seconds, siren ON",
-                    severity: "critical",
-                    time: new Date().toLocaleTimeString(),
-                  });
-                }
+              if (onDrowsinessAlert) {
+                onDrowsinessAlert({
+                  id: Date.now().toString(),
+                  type: "drowsiness",
+                  message: "Drowsiness detected: Eyes closed for 5+ seconds",
+                  severity: "high",
+                  time: new Date().toLocaleTimeString(),
+                });
               }
             }
-          } else if (smoothEAR > EAR_THRESHOLD_HIGH) {
-            setStatus("Awake 😊");
-            closedEyeFrames.current = 0;
-            eyeAlertSpoken.current = false;
 
             if (sirenPlaying.current && sirenAudioRef.current) {
               sirenAudioRef.current.pause();
               sirenPlaying.current = false;
               setIsAlertActive(false);
             }
-          }
+          } else if (closedEyeFrames.current >= CLOSED_EYE_FRAME_10S) {
+            setStatus("Very Sleepy! Siren ON 🚨");
 
-          if (smoothMAR > YAWN_THRESHOLD_LOW) {
-            setStatus("Yawning 😮");
-
-            if (!yawnAlertSpoken.current) {
-              speak("You seem tired, take a break");
-              yawnAlertSpoken.current = true;
+            if (!sirenPlaying.current && sirenAudioRef.current) {
+              sirenAudioRef.current.play().catch(() => {});
+              sirenPlaying.current = true;
+              setIsAlertActive(true);
 
               if (onDrowsinessAlert) {
                 onDrowsinessAlert({
                   id: Date.now().toString(),
-                  type: "yawn",
-                  message: "Yawning detected",
-                  severity: "medium",
+                  type: "drowsiness",
+                  message:
+                    "Drowsiness detected: Eyes closed for 10+ seconds, siren ON",
+                  severity: "critical",
                   time: new Date().toLocaleTimeString(),
                 });
               }
             }
-          } else if (smoothMAR < YAWN_THRESHOLD_HIGH) {
-            yawnAlertSpoken.current = false;
           }
+        } else if (smoothEAR > EAR_THRESHOLD_HIGH && yawnFrames.current === 0) {
+          setStatus("Awake 😊");
+        }
 
-          // Draw landmarks
-          canvasCtx.fillStyle = "rgba(0, 0, 0, 0)";
-          [
-            33, 160, 158, 133, 153, 144, 263, 387, 385, 362, 380, 373, 61, 291,
-            13, 14, 78, 308,
-          ].forEach((i) => {
+        // Yawning alert and status
+        if (yawnFrames.current >= YAWN_FRAME_THRESHOLD) {
+          setStatus("Yawning 😮");
+
+          if (!yawnAlertSpoken.current) {
+            speak("You seem sleepy , take a break");
+            yawnAlertSpoken.current = true;
+
+            if (onDrowsinessAlert) {
+              onDrowsinessAlert({
+                id: Date.now().toString(),
+                type: "yawn",
+                message: "Yawning detected",
+                severity: "medium",
+                time: new Date().toLocaleTimeString(),
+              });
+            }
+          }
+        }
+
+        // Draw key landmarks
+        canvasCtx.fillStyle = "rgba(0, 0, 0, 0)";
+        [33, 160, 158, 133, 153, 144, 263, 387, 385, 362, 380, 373].forEach(
+          (i) => {
             const x = landmarks[i].x * canvasRef.current.width;
             const y = landmarks[i].y * canvasRef.current.height;
             canvasCtx.beginPath();
             canvasCtx.arc(x, y, 2, 0, 2 * Math.PI);
             canvasCtx.fill();
-          });
+          }
+        );
 
-          return; // exit early since face detected inside yaw range
-        }
-
-        // If here, yaw outside threshold → consider as no face detected
-
-        setStatus("No face detected");
-        closedEyeFrames.current = 0;
-        eyeAlertSpoken.current = false;
-        yawnAlertSpoken.current = false;
-
-        if (!noFaceAlertSpoken.current) {
-          speak("Keep eyes on the road");
-          noFaceAlertSpoken.current = true;
-        }
-
-        if (sirenPlaying.current && sirenAudioRef.current) {
-          sirenAudioRef.current.pause();
-          sirenPlaying.current = false;
-          setIsAlertActive(false);
+        // Draw Yawning Text on canvas if yawning
+        if (yawnFrames.current >= YAWN_FRAME_THRESHOLD) {
+          canvasCtx.font = "30px Arial";
+          canvasCtx.fillStyle = "orange";
+          canvasCtx.fillText("", 10, 50);
         }
       } else {
-        // No face detected at all
+        // No face detected
         setStatus("No face detected");
         closedEyeFrames.current = 0;
         eyeAlertSpoken.current = false;
+        yawnFrames.current = 0;
         yawnAlertSpoken.current = false;
-
-        if (!noFaceAlertSpoken.current) {
-          speak("Keep eyes on the road");
-          noFaceAlertSpoken.current = true;
-        }
 
         if (sirenPlaying.current && sirenAudioRef.current) {
           sirenAudioRef.current.pause();
           sirenPlaying.current = false;
           setIsAlertActive(false);
         }
+
+        if (onFocusChange) {
+          onFocusChange(0); // no face, no focus
+        }
+
+        lastFocusPercentRef.current = 0;
       }
 
       canvasCtx.restore();
@@ -393,10 +377,6 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
           }}
         >
           {status}
-        </div>
-
-        <div style={{ marginTop: 20, display: "inline-block" }}>
-          {/* You can add FocusMeter here if you want */}
         </div>
       </div>
 
