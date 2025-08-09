@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import { Card } from "@/components/ui/card"
-import { Map, CloudSun, Webcam, Music4, BellRing, Gauge } from 'lucide-react'
+import { Map, CloudSun, Webcam, BellRing, Gauge } from 'lucide-react'
 import Speedometer3D from "@/components/hud/speedometer-3d"
 import FocusMeter from "@/components/hud/focus-meter"
 import WeatherPanel from "@/components/panels/weather-panel"
@@ -16,10 +16,12 @@ import WebcamPreview from "@/components/media/webcam-preview"
 import TopNav from "@/components/layout/top-nav"
 import WeatherFX from "@/components/visuals/weather-fx"
 import WeatherBackground from "@/components/visuals/weather-background"
+import MusicPlayer from "@/components/voice/Music-player";
 
 export default function DashboardPage() {
   const [speed, setSpeed] = useState(48)
   const [focus, setFocus] = useState(82)
+  const musicPlayerRef = useRef(null);
   const [showTraffic, setShowTraffic] = useState(true)
   const [expandWeather, setExpandWeather] = useState(true)
   const [alerts, setAlerts] = useState([])
@@ -212,27 +214,16 @@ export default function DashboardPage() {
       >
         <div className="mx-auto max-w-[1400px] px-4 py-2 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <VoiceAssistant
-              onCommand={handleCommand}
-              tts={true}
-              buttonClass="text-[#E0FFFF] hover:text-[#00FFF7]"
-            />
+            <VoiceAssistant musicPlayerRef={musicPlayerRef} />
             <span className="text-sm text-[#E0FFFF]/80">Voice Assistant</span>
           </div>
           <div className="hidden md:flex items-center gap-2 text-[#E0FFFF]/90">
-            <Music4 className="text-[#00FFF7]" />
-            <span className="text-sm">Now Playing: Synthwave Drive</span>
-            <div className="h-1 w-40 rounded bg-white/10 overflow-hidden">
-              <div className="h-full w-1/2 bg-[#1F51FF]" />
-            </div>
+            <MusicPlayer ref={musicPlayerRef} />
           </div>
           <div className="flex items-center gap-2">
             <BellRing className="text-[#FFC300]" />
             <span className="text-sm text-[#E0FFFF]/90">Active Alerts</span>
           </div>
-        </div>
-        <div className="mx-auto max-w-[1400px] px-4 pb-3">
-          <AlertsDisplay alerts={alerts} />
         </div>
       </footer>
     </div>

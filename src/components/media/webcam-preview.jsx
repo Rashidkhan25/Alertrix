@@ -11,18 +11,22 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
   const BLINK_MAX_FRAMES = 12; // max frames considered as a blink (~400ms at 30fps)
   const MAX_CLOSED_FRAMES = 30 * 10; // 10 seconds max closed eye duration
 
-  const [status, setStatus] = useState("Loading...");
+  const [status, setStatus] = useState("");
   const [isAlertActive, setIsAlertActive] = useState(false);
 
   const EAR_THRESHOLD_LOW = 0.25;
   const EAR_THRESHOLD_HIGH = 0.28;
 
-  const CLOSED_EYE_FRAME_5S = 30 * 2;
-  const CLOSED_EYE_FRAME_10S = 30 * 4;
+  const CLOSED_EYE_FRAME_5S = 10 * 3;
+  const CLOSED_EYE_FRAME_10S = 10 * 6;
 
   // Yawning detection thresholds
   const MAR_THRESHOLD = 0.6; // mouth aspect ratio threshold for yawning
   const YAWN_FRAME_THRESHOLD = 15; // frames required to confirm yawning (~0.5s at 30fps)
+
+  // Head-turn thresholds using degrees (±90 degrees)
+  // We will calculate headYaw and headPitch in degrees, so threshold is 90 degrees
+  const HEAD_TURN_ANGLE_THRESHOLD = 90;
 
   const closedEyeFrames = useRef(0);
   const eyeAlertSpoken = useRef(false);
@@ -33,6 +37,13 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
   const yawnAlertSpoken = useRef(false);
 
   const earBuffer = useRef([]);
+
+  // New refs for head turn and no face detection alerts
+  const headTurnAlertSpoken = useRef(false);
+  const headTurnCooldown = useRef(false);
+
+  const noFaceAlertSpoken = useRef(false);
+  const noFaceCooldown = useRef(false);
 
   function distance(a, b) {
     return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
@@ -84,9 +95,47 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
 
   function speak(text) {
     if (!window.speechSynthesis) return;
+    console.log("Speaking:", text); // debug
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1;
-    window.speechSynthesis.speak(utterance);
+    try {
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn("speechSynthesis failed:", e);
+    }
+  }
+
+  // NEW function to calculate approximate yaw angle in degrees from landmarks
+  // Using nose tip and cheeks X coords (0 to 1), compute head yaw roughly:
+  // yawDegrees: negative = left turn, positive = right turn
+  function getHeadYawDegrees(landmarks) {
+    const noseX = landmarks[1].x;
+    const leftCheekX = landmarks[33].x;
+    const rightCheekX = landmarks[263].x;
+    const faceWidth = rightCheekX - leftCheekX || 1e-6;
+    const nosePosNorm = (noseX - leftCheekX) / faceWidth; // normalized 0 to 1
+
+    // Map nosePosNorm from [0,1] to approx yaw angle [-90,90]
+    // 0 means fully left, 1 means fully right, 0.5 center
+    const yaw = (nosePosNorm - 0.5) * 2 * HEAD_TURN_ANGLE_THRESHOLD; // -90 to 90 degrees
+
+    return yaw;
+  }
+
+  // NEW function to calculate approximate pitch angle in degrees from landmarks
+  // Using nose tip, forehead and chin Y coords
+  // pitchDegrees: negative = looking up, positive = looking down
+  function getHeadPitchDegrees(landmarks) {
+    // landmark 10 ~ upper forehead, 152 ~ chin, 1 ~ nose tip
+    const noseY = landmarks[1].y;
+    const foreheadY = landmarks[10].y;
+    const chinY = landmarks[152].y;
+    const faceHeight = chinY - foreheadY || 1e-6;
+    // normalized nose position relative to face vertical center (0..1)
+    const nosePosNorm = (noseY - foreheadY) / faceHeight; // 0 = top, 1 = bottom
+    // map normalized position to [-90, 90], center at 0.5 -> 0 deg
+    const pitch = (nosePosNorm - 0.5) * 2 * HEAD_TURN_ANGLE_THRESHOLD;
+    return pitch;
   }
 
   useEffect(() => {
@@ -170,8 +219,51 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
         canvasRef.current.height
       );
 
+      const framesThreshold = Math.round(STABLE_TIME_MS / (1000 / 30));
+
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+        // face detected — reset no-face counters/flags
+        noFaceAlertSpoken.current = false;
+        noFaceCooldown.current = false;
+
         const landmarks = results.multiFaceLandmarks[0];
+
+        // --- HEAD TURN logic updated (yaw OR pitch) ---
+        const headYaw = getHeadYawDegrees(landmarks);
+        const headPitch = getHeadPitchDegrees(landmarks);
+
+        // trigger if yaw or pitch beyond threshold
+        if (
+          Math.abs(headYaw) >= HEAD_TURN_ANGLE_THRESHOLD ||
+          Math.abs(headPitch) >= HEAD_TURN_ANGLE_THRESHOLD
+        ) {
+          setStatus("Keep your eyes on the road! Head turned away.");
+
+          if (!headTurnAlertSpoken.current && !headTurnCooldown.current) {
+            if (onDrowsinessAlert) {
+              onDrowsinessAlert({
+                id: Date.now().toString(),
+                type: "head_turn",
+                message:
+                  "Please keep your eyes on the road! Head turned too far.",
+                severity: "high",
+                time: new Date().toLocaleTimeString(),
+              });
+            }
+            speak("Keep your eyes on the road");
+            headTurnAlertSpoken.current = true;
+            headTurnCooldown.current = true;
+            setTimeout(() => {
+              headTurnCooldown.current = false;
+            }, 5000);
+          }
+        } else {
+          // Head back within normal range: reset alert flags
+          headTurnAlertSpoken.current = false;
+        }
+        // --- END HEAD TURN logic ---
+
+        // ... rest of your existing onResults face detected logic ...
 
         const leftEAR = calculateEAR(landmarks, true);
         const rightEAR = calculateEAR(landmarks, false);
@@ -206,7 +298,7 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
           }
         }
 
-        // --- Focus percent smoothing logic with blink ignored ---
+        // Focus percent smoothing logic with blink ignored
         const focusPercentRaw = earToFocusPercent(smoothEAR);
         const alpha = 0.1; // smoothing factor
 
@@ -230,7 +322,6 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
         if (onFocusChange) {
           onFocusChange(finalFocusPercent);
         }
-        // --- end updated focus logic ---
 
         // Update status messages and alerts based on closed eye duration
         if (closedEyeFrames.current > BLINK_MAX_FRAMES) {
@@ -238,8 +329,6 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
             closedEyeFrames.current >= CLOSED_EYE_FRAME_5S &&
             closedEyeFrames.current < CLOSED_EYE_FRAME_10S
           ) {
-            setStatus("Sleepy 😴 (Eyes closed 5+ seconds)");
-
             if (!eyeAlertSpoken.current) {
               speak("Stay with me");
               eyeAlertSpoken.current = true;
@@ -261,8 +350,6 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
               setIsAlertActive(false);
             }
           } else if (closedEyeFrames.current >= CLOSED_EYE_FRAME_10S) {
-            setStatus("Very Sleepy! Siren ON 🚨");
-
             if (!sirenPlaying.current && sirenAudioRef.current) {
               sirenAudioRef.current.play().catch(() => {});
               sirenPlaying.current = true;
@@ -281,13 +368,11 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
             }
           }
         } else if (smoothEAR > EAR_THRESHOLD_HIGH && yawnFrames.current === 0) {
-          setStatus("Awake 😊");
+          // not sleepy
         }
 
         // Yawning alert and status
         if (yawnFrames.current >= YAWN_FRAME_THRESHOLD) {
-          setStatus("Yawning 😮");
-
           if (!yawnAlertSpoken.current) {
             speak("You seem sleepy , take a break");
             yawnAlertSpoken.current = true;
@@ -324,7 +409,26 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
         }
       } else {
         // No face detected
-        setStatus("No face detected");
+        // note: per your request, don't speak "Keep your eyes on the road" here
+
+        if (!noFaceAlertSpoken.current && !noFaceCooldown.current) {
+          if (onDrowsinessAlert) {
+            onDrowsinessAlert({
+              id: Date.now().toString(),
+              type: "no_face",
+              message: "No face detected! Please keep your eyes on the road.",
+              severity: "high",
+              time: new Date().toLocaleTimeString(),
+            });
+          }
+          // speak removed intentionally
+          noFaceAlertSpoken.current = true;
+          noFaceCooldown.current = true;
+          setTimeout(() => {
+            noFaceCooldown.current = false;
+          }, 5000);
+        }
+
         closedEyeFrames.current = 0;
         eyeAlertSpoken.current = false;
         yawnFrames.current = 0;
@@ -341,6 +445,7 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
         }
 
         lastFocusPercentRef.current = 0;
+        headTurnAlertSpoken.current = false;
       }
 
       canvasCtx.restore();
@@ -356,7 +461,6 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
       }
     };
   }, []); // run once on mount
-
   return (
     <>
       <div style={{ textAlign: "center" }}>

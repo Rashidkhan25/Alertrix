@@ -205,3 +205,62 @@ function normalizeOpenMeteo(code) {
 function codeToIcon(_code) {
   return "/glowing-weather-icon.png"
 }
+
+export async function getWeatherSummary() {
+  try {
+    const settings = JSON.parse(
+      localStorage.getItem("ai-copilot:settings") || "{}"
+    );
+    const owmKey = settings?.owmKey || "";
+    const pos = await getPosition();
+    const lat = pos?.coords?.latitude ?? 37.7749;
+    const lon = pos?.coords?.longitude ?? -122.4194;
+
+    // Get city name from coords:
+    const cityName = await getCityFromCoords(lat, lon);
+
+    if (owmKey) {
+      const resp = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${owmKey}`
+      );
+      if (!resp.ok) throw new Error("OpenWeatherMap error");
+      const json = await resp.json();
+      const temp = Math.round(json.main.temp);
+      const desc = json.weather?.[0]?.description ?? "weather";
+
+      return `The weather in ${cityName} is currently ${desc} with a temperature of ${temp} degrees Celsius.`;
+    } else {
+      const resp = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto`
+      );
+      if (!resp.ok) throw new Error("Open-Meteo error");
+      const json = await resp.json();
+      const temp = Math.round(json.current_weather?.temperature ?? 20);
+      const desc = "clear sky";
+
+      return `The weather in ${cityName} is currently ${desc} with a temperature of ${temp} degrees Celsius.`;
+    }
+  } catch (error) {
+    return "Sorry, I could not fetch the weather right now.";
+  }
+}
+
+
+async function getCityFromCoords(lat, lon) {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`
+    );
+    if (!response.ok) throw new Error("Reverse geocoding failed");
+    const data = await response.json();
+    return (
+      data.address.city ||
+      data.address.town ||
+      data.address.village ||
+      data.address.county ||
+      "your location"
+    );
+  } catch {
+    return "your location";
+  }
+}
