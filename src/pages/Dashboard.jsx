@@ -135,8 +135,8 @@ export default function DashboardPage() {
       >
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
           <div className="space-y-4 lg:col-span-1">
-            <Card className="p-4" style={panelStyle}>
-              <div className="flex items-center gap-2 mb-3 text-[#E0FFFF]">
+            <Card className="p-4 h-[20rem]" style={panelStyle}>
+              <div className="flex items-center gap-2 mb-3 mt-[1.5rem] text-[#E0FFFF]">
                 <CloudSun className="text-[#00FFF7]" />
                 <h3 className="font-semibold">Weather</h3>
               </div>
@@ -147,7 +147,7 @@ export default function DashboardPage() {
               />
             </Card>
 
-            <Card className="p-4" style={panelStyle}>
+            <Card className="p-4 h-[18rem]" style={panelStyle}>
               <div className="flex items-center gap-2 mb-3 text-[#E0FFFF]">
                 <Map className="text-[#00FFF7]" />
                 <h3 className="font-semibold">Traffic Conditions</h3>
@@ -158,7 +158,7 @@ export default function DashboardPage() {
               />
             </Card>
 
-            <Card className="p-4" style={panelStyle}>
+            <Card className="p-4 h-[10rem]" style={panelStyle}>
               <div className="flex items-center gap-2 mb-3 text-[#E0FFFF]">
                 <Gauge className="text-[#00FFF7]" />
                 <h3 className="font-semibold">Date & Time</h3>
@@ -169,8 +169,8 @@ export default function DashboardPage() {
 
           <div className="lg:col-span-2 space-y-4">
             <Card className="p-4" style={panelStyle}>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                <div className="md:col-span-2">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center h-[20rem]">
+                <div className="md:col-span-2 ">
                   <Speedometer3D speed={speed} maxSpeed={160} />
                 </div>
                 <div className="md:col-span-1">
@@ -225,8 +225,7 @@ export default function DashboardPage() {
           <div className="hidden md:flex items-center gap-2 text-[#E0FFFF]/90">
             <MusicPlayer ref={musicPlayerRef} />
           </div>
-          <div className="flex items-center gap-2">
-          </div>
+          <div className="flex items-center gap-2"></div>
         </div>
         <div className="mx-auto max-w-[1400px] px-4 pb-3">
           <AlertsDisplay alerts={alerts} />

@@ -45,7 +45,7 @@ const MusicPlayer = forwardRef((props, ref) => {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.volume = 0.1;
+    audio.volume = 0.6;
 
     const updateProgress = () => setProgress(audio.currentTime);
     const setAudioDuration = () => setDuration(audio.duration);

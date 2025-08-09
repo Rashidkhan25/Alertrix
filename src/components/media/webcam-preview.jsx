@@ -17,8 +17,8 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
   const EAR_THRESHOLD_LOW = 0.25;
   const EAR_THRESHOLD_HIGH = 0.28;
 
-  const CLOSED_EYE_FRAME_5S = 10 * 3;
-  const CLOSED_EYE_FRAME_10S = 10 * 6;
+  const CLOSED_EYE_FRAME_5S = 10 * 4;
+  const CLOSED_EYE_FRAME_10S = 10 * 8;
 
   // Yawning detection thresholds
   const MAR_THRESHOLD = 0.6; // mouth aspect ratio threshold for yawning
@@ -237,7 +237,7 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
           Math.abs(headYaw) >= HEAD_TURN_ANGLE_THRESHOLD ||
           Math.abs(headPitch) >= HEAD_TURN_ANGLE_THRESHOLD
         ) {
-          setStatus("Keep your eyes on the road! Head turned away.");
+          
 
           if (!headTurnAlertSpoken.current && !headTurnCooldown.current) {
             if (onDrowsinessAlert) {
@@ -468,7 +468,7 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
         <canvas
           ref={canvasRef}
           width="550"
-          height="350"
+          height="330"
           className="rounded"
           style={{ display: "inline-block" }}
         />

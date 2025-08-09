@@ -15,7 +15,7 @@ export function generateTripSeries({ hours = 24, stepMinutes = 10, seed = Date.n
     let alert = null
     const alertChance = (focus < 55 ? 0.09 : 0.03) + (speed > 110 ? 0.04 : 0)
     if (rand() < alertChance) {
-      const types = ["Drowsiness", "Distraction", "Speeding", "Seatbelt"]
+      const types = ["Drowsy", "Distraction", "Yawning"]
       const type = types[Math.floor(rand() * types.length)]
       const severity = rand() < 0.6 ? "medium" : "high"
       alert = { type, severity }

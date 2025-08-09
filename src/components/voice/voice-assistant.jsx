@@ -22,6 +22,15 @@ export default function VoiceAssistant({ musicPlayerRef }) {
   const processTimeoutRef = useRef(null);
   const inactivityTimeoutRef = useRef(null);
 
+  // --- Volume fading refs ---
+  const fadeAnimationRef = useRef(null);
+  // Map to store original volumes of all audios
+  const originalVolumesRef = useRef(new Map());
+
+  // Target fade volume when Jarvis is activated
+  const FADE_VOLUME = 0.06;
+  const FADE_SPEED = 0.2; // 
+
   // Music control using musicPlayerRef
   const playMusic = () => {
     if (musicPlayerRef?.current?.play) {
@@ -133,6 +142,62 @@ export default function VoiceAssistant({ musicPlayerRef }) {
     return "Sorry, I didn't get that. Can you please repeat?";
   };
 
+  // --- Global audio fade logic ---
+  useEffect(() => {
+    // Get all audio elements on page
+    const audios = Array.from(document.querySelectorAll("audio"));
+
+    if (activated) {
+      // On activate, store original volumes and start fade down
+      audios.forEach((audio) => {
+        if (!originalVolumesRef.current.has(audio)) {
+          originalVolumesRef.current.set(audio, audio.volume);
+        }
+      });
+    } else {
+      // On deactivate, fade back to original volume
+      // If we haven't stored original volume, just ignore
+      if (originalVolumesRef.current.size === 0) return;
+    }
+
+    function fadeVolumes() {
+      let stillFading = false;
+
+      audios.forEach((audio) => {
+        if (!audio) return;
+
+        const originalVolume = originalVolumesRef.current.get(audio) ?? 1;
+        const targetVolume = activated ? FADE_VOLUME : originalVolume;
+        const currentVolume = audio.volume;
+        const diff = targetVolume - currentVolume;
+
+        if (Math.abs(diff) > 0.01) {
+          audio.volume = currentVolume + diff * FADE_SPEED;
+          stillFading = true;
+        } else {
+          audio.volume = targetVolume;
+        }
+      });
+
+      if (stillFading) {
+        fadeAnimationRef.current = requestAnimationFrame(fadeVolumes);
+      } else {
+        // If deactivated, clear stored volumes after fade up completes
+        if (!activated) {
+          originalVolumesRef.current.clear();
+        }
+      }
+    }
+
+    fadeVolumes();
+
+    return () => {
+      if (fadeAnimationRef.current) {
+        cancelAnimationFrame(fadeAnimationRef.current);
+      }
+    };
+  }, [activated]);
+
   useEffect(() => {
     if (!activated) return;
 
@@ -145,7 +210,7 @@ export default function VoiceAssistant({ musicPlayerRef }) {
         setActivated(false);
         resetTranscript();
       }
-    }, 11000);
+    }, 8000);
 
     if (processTimeoutRef.current) clearTimeout(processTimeoutRef.current);
 
@@ -175,7 +240,7 @@ export default function VoiceAssistant({ musicPlayerRef }) {
         await speak(response);
         resetTranscript();
       }
-    }, 1200);
+    }, 1000);
 
     return () => {
       clearTimeout(processTimeoutRef.current);
@@ -296,7 +361,6 @@ export default function VoiceAssistant({ musicPlayerRef }) {
               textAlign: "center",
               display: "flex",
               alignItems: "center",
-            
             }}
           >
             Voice Assistant
