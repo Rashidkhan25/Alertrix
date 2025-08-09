@@ -106,7 +106,10 @@ export default function DashboardPage() {
   return (
     <div className="relative min-h-screen w-full flex flex-col">
       {useDarkBackground ? (
-        <div className="absolute inset-0" style={{ backgroundColor: "#0B0C10" }} />
+        <div
+          className="absolute inset-0"
+          style={{ backgroundColor: "#0B0C10" }}
+        />
       ) : (
         <>
           <WeatherBackground condition={weatherKind} day={isDay} />
@@ -129,7 +132,11 @@ export default function DashboardPage() {
                 <CloudSun className="text-[#00FFF7]" />
                 <h3 className="font-semibold">Weather</h3>
               </div>
-              <WeatherPanel expanded={expandWeather} onToggle={() => setExpandWeather((x) => !x)} onWeatherChange={handleWeatherKind} />
+              <WeatherPanel
+                expanded={expandWeather}
+                onToggle={() => setExpandWeather((x) => !x)}
+                onWeatherChange={handleWeatherKind}
+              />
             </Card>
 
             <Card className="p-4" style={panelStyle}>
@@ -137,7 +144,10 @@ export default function DashboardPage() {
                 <Map className="text-[#00FFF7]" />
                 <h3 className="font-semibold">Traffic Conditions</h3>
               </div>
-              <TrafficPanel showTraffic={showTraffic} onToggle={() => setShowTraffic((x) => !x)} />
+              <TrafficPanel
+                showTraffic={showTraffic}
+                onToggle={() => setShowTraffic((x) => !x)}
+              />
             </Card>
 
             <Card className="p-4" style={panelStyle}>
@@ -164,9 +174,14 @@ export default function DashboardPage() {
             <Card className="p-4" style={panelStyle}>
               <div className="flex items-center gap-2 mb-3 text-[#E0FFFF]">
                 <Webcam className="text-[#00FFF7]" />
-                <h3 className="font-semibold">Driver Avatar (Face Tracking Placeholder)</h3>
+                <h3 className="font-semibold">
+                  Driver Avatar (Face Tracking Placeholder)
+                </h3>
               </div>
-              <WebcamPreview />
+              <WebcamPreview
+                onFocusChange={setFocus}
+                onDrowsinessAlert={triggerAlert}
+              />
             </Card>
           </div>
 
@@ -179,7 +194,8 @@ export default function DashboardPage() {
               <div className="space-y-3">
                 <NavigationMap showTraffic={showTraffic} />
                 <p className="text-xs text-[#E0FFFF]/80">
-                  Live traffic requires a Google Maps API key in Settings. Without it, traffic is simulated.
+                  Live traffic requires a Google Maps API key in Settings.
+                  Without it, traffic is simulated.
                 </p>
               </div>
             </Card>
@@ -189,11 +205,18 @@ export default function DashboardPage() {
 
       <footer
         className="z-10 sticky bottom-0 border-t border-white/10 backdrop-blur"
-        style={{ background: "linear-gradient(180deg, rgba(10,12,16,0.75), rgba(10,12,16,0.95))" }}
+        style={{
+          background:
+            "linear-gradient(180deg, rgba(10,12,16,0.75), rgba(10,12,16,0.95))",
+        }}
       >
         <div className="mx-auto max-w-[1400px] px-4 py-2 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <VoiceAssistant onCommand={handleCommand} tts={true} buttonClass="text-[#E0FFFF] hover:text-[#00FFF7]" />
+            <VoiceAssistant
+              onCommand={handleCommand}
+              tts={true}
+              buttonClass="text-[#E0FFFF] hover:text-[#00FFF7]"
+            />
             <span className="text-sm text-[#E0FFFF]/80">Voice Assistant</span>
           </div>
           <div className="hidden md:flex items-center gap-2 text-[#E0FFFF]/90">
@@ -213,5 +236,5 @@ export default function DashboardPage() {
         </div>
       </footer>
     </div>
-  )
+  );
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
+import FocusMeter from "../hud/focus-meter";
 
-export default function WebcamPreview({ onDrowsinessAlert }) {
+export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [status, setStatus] = useState("Loading...");
@@ -19,7 +20,7 @@ export default function WebcamPreview({ onDrowsinessAlert }) {
   const sirenPlaying = useRef(false);
   const sirenAudioRef = useRef(null);
   const yawnAlertSpoken = useRef(false);
-  const noFaceAlertSpoken = useRef(false); // <-- New ref for no-face voice alert
+  const noFaceAlertSpoken = useRef(false);
 
   const earBuffer = useRef([]);
   const marBuffer = useRef([]);
@@ -62,11 +63,47 @@ export default function WebcamPreview({ onDrowsinessAlert }) {
     return vertical / horizontal;
   }
 
+  // Calculate approximate yaw angle in degrees:
+  // We'll use nose tip (landmark 1), left eye (33), right eye (263)
+  // Calculate angle based on horizontal distances:
+  function calculateYawAngle(landmarks) {
+    const nose = landmarks[1]; // nose tip
+    const leftEye = landmarks[33];
+    const rightEye = landmarks[263];
+
+    // Midpoint between eyes
+    const midX = (leftEye.x + rightEye.x) / 2;
+    const midY = (leftEye.y + rightEye.y) / 2;
+
+    // horizontal offset from nose to midpoint
+    const dx = nose.x - midX;
+    const dy = nose.y - midY;
+
+    // Use atan2 to get angle
+    const angleRad = Math.atan2(dy, dx);
+    const angleDeg = (angleRad * 180) / Math.PI;
+
+    // The angle here is relative horizontal, but we care mostly about yaw left-right.
+    // Since face turning left moves nose tip right relative to eyes midpoint (depending on camera), we'll flip sign:
+    // After some testing, just use dx * -1 to approximate yaw:
+    const yawDeg = -dx * 180; // scale for intuition, not precise but good for threshold
+
+    return yawDeg;
+  }
+
   function speak(text) {
     if (!window.speechSynthesis) return;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1;
     window.speechSynthesis.speak(utterance);
+  }
+
+  function earToFocusPercent(ear) {
+    const minEAR = 0.15;
+    const maxEAR = 0.35;
+    const clampedEAR = Math.min(Math.max(ear, minEAR), maxEAR);
+    const normalized = (clampedEAR - minEAR) / (maxEAR - minEAR);
+    return Math.round(normalized * 100);
   }
 
   useEffect(() => {
@@ -151,121 +188,160 @@ export default function WebcamPreview({ onDrowsinessAlert }) {
       );
 
       if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-        // Face detected — reset no face alert flag
-        noFaceAlertSpoken.current = false;
-
         const landmarks = results.multiFaceLandmarks[0];
 
-        const leftEAR = calculateEAR(landmarks, true);
-        const rightEAR = calculateEAR(landmarks, false);
-        const currentEAR = (leftEAR + rightEAR) / 2;
+        // Calculate yaw angle
+        const yaw = calculateYawAngle(landmarks);
+        // console.log("Yaw angle:", yaw);
 
-        const currentMAR = calculateMAR(landmarks);
+        // Only allow alerts if yaw is beyond ±90°
+        const isYawOutsideThreshold = Math.abs(yaw) > 90;
 
-        if (earBuffer.current.length >= 5) earBuffer.current.shift();
-        earBuffer.current.push(currentEAR);
+        if (!isYawOutsideThreshold) {
+          // Face detected and facing mostly front, clear noFace alert flags
+          noFaceAlertSpoken.current = false;
+        }
 
-        if (marBuffer.current.length >= 5) marBuffer.current.shift();
-        marBuffer.current.push(currentMAR);
+        // If yaw inside threshold, consider face detected
+        if (!isYawOutsideThreshold) {
+          // --- Existing face detection logic ---
 
-        const smoothEAR = average(earBuffer.current);
-        const smoothMAR = average(marBuffer.current);
+          closedEyeFrames.current = closedEyeFrames.current || 0; // safety init
 
-        if (smoothEAR < EAR_THRESHOLD_LOW) {
-          closedEyeFrames.current += 1;
+          const leftEAR = calculateEAR(landmarks, true);
+          const rightEAR = calculateEAR(landmarks, false);
+          const currentEAR = (leftEAR + rightEAR) / 2;
 
-          if (
-            closedEyeFrames.current >= CLOSED_EYE_FRAME_5S &&
-            closedEyeFrames.current < CLOSED_EYE_FRAME_10S
-          ) {
-            setStatus("Sleepy 😴 (Eyes closed 5+ seconds)");
+          const currentMAR = calculateMAR(landmarks);
 
-            if (!eyeAlertSpoken.current) {
-              speak("Stay with me");
-              eyeAlertSpoken.current = true;
+          if (earBuffer.current.length >= 5) earBuffer.current.shift();
+          earBuffer.current.push(currentEAR);
 
-              if (onDrowsinessAlert) {
-                onDrowsinessAlert({
-                  id: Date.now().toString(),
-                  type: "drowsiness",
-                  message: "Drowsiness detected: Eyes closed for 5+ seconds",
-                  severity: "high",
-                  time: new Date().toLocaleTimeString(),
-                });
+          if (marBuffer.current.length >= 5) marBuffer.current.shift();
+          marBuffer.current.push(currentMAR);
+
+          const smoothEAR = average(earBuffer.current);
+          const smoothMAR = average(marBuffer.current);
+
+          const focusPercent = earToFocusPercent(smoothEAR);
+          if (onFocusChange) onFocusChange(focusPercent);
+
+          if (smoothEAR < EAR_THRESHOLD_LOW) {
+            closedEyeFrames.current += 1;
+
+            if (
+              closedEyeFrames.current >= CLOSED_EYE_FRAME_5S &&
+              closedEyeFrames.current < CLOSED_EYE_FRAME_10S
+            ) {
+              setStatus("Sleepy 😴 (Eyes closed 5+ seconds)");
+
+              if (!eyeAlertSpoken.current) {
+                speak("Stay with me");
+                eyeAlertSpoken.current = true;
+
+                if (onDrowsinessAlert) {
+                  onDrowsinessAlert({
+                    id: Date.now().toString(),
+                    type: "drowsiness",
+                    message: "Drowsiness detected: Eyes closed for 5+ seconds",
+                    severity: "high",
+                    time: new Date().toLocaleTimeString(),
+                  });
+                }
+              }
+              if (sirenPlaying.current && sirenAudioRef.current) {
+                sirenAudioRef.current.pause();
+                sirenPlaying.current = false;
+                setIsAlertActive(false);
+              }
+            } else if (closedEyeFrames.current >= CLOSED_EYE_FRAME_10S) {
+              setStatus("Very Sleepy! Siren ON 🚨");
+
+              if (!sirenPlaying.current && sirenAudioRef.current) {
+                sirenAudioRef.current.play().catch(() => {});
+                sirenPlaying.current = true;
+                setIsAlertActive(true);
+
+                if (onDrowsinessAlert) {
+                  onDrowsinessAlert({
+                    id: Date.now().toString(),
+                    type: "drowsiness",
+                    message:
+                      "Drowsiness detected: Eyes closed for 10+ seconds, siren ON",
+                    severity: "critical",
+                    time: new Date().toLocaleTimeString(),
+                  });
+                }
               }
             }
+          } else if (smoothEAR > EAR_THRESHOLD_HIGH) {
+            setStatus("Awake 😊");
+            closedEyeFrames.current = 0;
+            eyeAlertSpoken.current = false;
+
             if (sirenPlaying.current && sirenAudioRef.current) {
               sirenAudioRef.current.pause();
               sirenPlaying.current = false;
               setIsAlertActive(false);
             }
-          } else if (closedEyeFrames.current >= CLOSED_EYE_FRAME_10S) {
-            setStatus("Very Sleepy! Siren ON 🚨");
+          }
 
-            if (!sirenPlaying.current && sirenAudioRef.current) {
-              sirenAudioRef.current.play().catch(() => {});
-              sirenPlaying.current = true;
-              setIsAlertActive(true);
+          if (smoothMAR > YAWN_THRESHOLD_LOW) {
+            setStatus("Yawning 😮");
+
+            if (!yawnAlertSpoken.current) {
+              speak("You seem tired, take a break");
+              yawnAlertSpoken.current = true;
 
               if (onDrowsinessAlert) {
                 onDrowsinessAlert({
                   id: Date.now().toString(),
-                  type: "drowsiness",
-                  message:
-                    "Drowsiness detected: Eyes closed for 10+ seconds, siren ON",
-                  severity: "critical",
+                  type: "yawn",
+                  message: "Yawning detected",
+                  severity: "medium",
                   time: new Date().toLocaleTimeString(),
                 });
               }
             }
+          } else if (smoothMAR < YAWN_THRESHOLD_HIGH) {
+            yawnAlertSpoken.current = false;
           }
-        } else if (smoothEAR > EAR_THRESHOLD_HIGH) {
-          setStatus("Awake 😊");
-          closedEyeFrames.current = 0;
-          eyeAlertSpoken.current = false;
 
-          if (sirenPlaying.current && sirenAudioRef.current) {
-            sirenAudioRef.current.pause();
-            sirenPlaying.current = false;
-            setIsAlertActive(false);
-          }
+          // Draw landmarks
+          canvasCtx.fillStyle = "rgba(0, 0, 0, 0)";
+          [
+            33, 160, 158, 133, 153, 144, 263, 387, 385, 362, 380, 373, 61, 291,
+            13, 14, 78, 308,
+          ].forEach((i) => {
+            const x = landmarks[i].x * canvasRef.current.width;
+            const y = landmarks[i].y * canvasRef.current.height;
+            canvasCtx.beginPath();
+            canvasCtx.arc(x, y, 2, 0, 2 * Math.PI);
+            canvasCtx.fill();
+          });
+
+          return; // exit early since face detected inside yaw range
         }
 
-        if (smoothMAR > YAWN_THRESHOLD_LOW) {
-          setStatus("Yawning 😮");
+        // If here, yaw outside threshold → consider as no face detected
 
-          if (!yawnAlertSpoken.current) {
-            speak("You seem tired, take a break");
-            yawnAlertSpoken.current = true;
+        setStatus("No face detected");
+        closedEyeFrames.current = 0;
+        eyeAlertSpoken.current = false;
+        yawnAlertSpoken.current = false;
 
-            if (onDrowsinessAlert) {
-              onDrowsinessAlert({
-                id: Date.now().toString(),
-                type: "yawn",
-                message: "Yawning detected",
-                severity: "medium",
-                time: new Date().toLocaleTimeString(),
-              });
-            }
-          }
-        } else if (smoothMAR < YAWN_THRESHOLD_HIGH) {
-          yawnAlertSpoken.current = false;
+        if (!noFaceAlertSpoken.current) {
+          speak("Keep eyes on the road");
+          noFaceAlertSpoken.current = true;
         }
 
-        // Draw landmarks
-        canvasCtx.fillStyle = "rgba(0, 0, 0, 0)";
-        [
-          33, 160, 158, 133, 153, 144, 263, 387, 385, 362, 380, 373, 61, 291,
-          13, 14, 78, 308,
-        ].forEach((i) => {
-          const x = landmarks[i].x * canvasRef.current.width;
-          const y = landmarks[i].y * canvasRef.current.height;
-          canvasCtx.beginPath();
-          canvasCtx.arc(x, y, 2, 0, 2 * Math.PI);
-          canvasCtx.fill();
-        });
+        if (sirenPlaying.current && sirenAudioRef.current) {
+          sirenAudioRef.current.pause();
+          sirenPlaying.current = false;
+          setIsAlertActive(false);
+        }
       } else {
-        // No face detected: speak alert once
+        // No face detected at all
         setStatus("No face detected");
         closedEyeFrames.current = 0;
         eyeAlertSpoken.current = false;
@@ -295,7 +371,7 @@ export default function WebcamPreview({ onDrowsinessAlert }) {
         setIsAlertActive(false);
       }
     };
-  }, [onDrowsinessAlert]);
+  }, []); // run once on mount
 
   return (
     <>
@@ -318,9 +394,12 @@ export default function WebcamPreview({ onDrowsinessAlert }) {
         >
           {status}
         </div>
+
+        <div style={{ marginTop: 20, display: "inline-block" }}>
+          {/* You can add FocusMeter here if you want */}
+        </div>
       </div>
 
-      {/* Neon red blinking overlay with yellow text and icon */}
       {isAlertActive && (
         <div
           style={{
@@ -342,7 +421,6 @@ export default function WebcamPreview({ onDrowsinessAlert }) {
             padding: "0 20px",
           }}
         >
-          {/* Text container with ALERT and WARNING stacked */}
           <div
             style={{
               display: "flex",
@@ -357,7 +435,7 @@ export default function WebcamPreview({ onDrowsinessAlert }) {
                 color: "#ffff33",
                 fontSize: "6rem",
                 fontWeight: "900",
-                textShadow: "0 0 3px #ffff33, 0 0 6px #ffff00", // reduced glow
+                textShadow: "0 0 3px #ffff33, 0 0 6px #ffff00",
                 fontFamily: "Arial, sans-serif",
                 lineHeight: 1,
               }}
@@ -369,7 +447,7 @@ export default function WebcamPreview({ onDrowsinessAlert }) {
                 color: "#ffff33",
                 fontSize: "2.5rem",
                 fontWeight: "700",
-                textShadow: "0 0 2px #ffff33, 0 0 4px #ffff00", // reduced glow
+                textShadow: "0 0 2px #ffff33, 0 0 4px #ffff00",
                 fontFamily: "Arial, sans-serif",
                 marginTop: "-10px",
               }}
@@ -378,7 +456,6 @@ export default function WebcamPreview({ onDrowsinessAlert }) {
             </div>
           </div>
 
-          {/* Classic danger sign icon */}
           <svg
             xmlns="http://www.w3.org/2000/svg"
             height="150"
@@ -387,10 +464,9 @@ export default function WebcamPreview({ onDrowsinessAlert }) {
             fill="#ffff33"
             style={{
               filter:
-                "drop-shadow(0 0 2px #ffff33) drop-shadow(0 0 4px #ffff00)", // reduced glow
+                "drop-shadow(0 0 2px #ffff33) drop-shadow(0 0 4px #ffff00)",
             }}
           >
-            {/* Classic danger/exclamation triangle */}
             <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z" />
           </svg>
         </div>
