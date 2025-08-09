@@ -4,10 +4,11 @@ import SpeechRecognition, {
 } from "react-speech-recognition";
 import { getWeatherSummary } from "../panels/weather-panel"; // adjust path as needed
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faMicrophone, faRobot } from "@fortawesome/free-solid-svg-icons";
+import { faMicrophone } from "@fortawesome/free-solid-svg-icons";
 
 export default function VoiceAssistant({ musicPlayerRef }) {
   const [activated, setActivated] = useState(false);
+  const [micPermissionGranted, setMicPermissionGranted] = useState(false);
 
   const {
     transcript,
@@ -29,9 +30,35 @@ export default function VoiceAssistant({ musicPlayerRef }) {
 
   // Target fade volume when Jarvis is activated
   const FADE_VOLUME = 0.06;
-  const FADE_SPEED = 0.2; // 
+  const FADE_SPEED = 0.2;
 
-  // Music control using musicPlayerRef
+  // Request mic permission once on mount
+  useEffect(() => {
+    async function requestMicPermission() {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        setMicPermissionGranted(true);
+        console.log("Microphone permission granted");
+      } catch (err) {
+        setMicPermissionGranted(false);
+        console.log("Microphone permission denied or error:", err);
+      }
+    }
+    requestMicPermission();
+  }, []);
+
+  // Start listening when permission granted and not already listening
+  useEffect(() => {
+    if (!browserSupportsSpeechRecognition) return;
+    if (!listening && micPermissionGranted) {
+      SpeechRecognition.startListening({
+        continuous: true,
+        language: "en-US",
+        interimResults: true,
+      });
+    }
+  }, [listening, browserSupportsSpeechRecognition, micPermissionGranted]);
+
   const playMusic = () => {
     if (musicPlayerRef?.current?.play) {
       musicPlayerRef.current.play();
@@ -44,21 +71,6 @@ export default function VoiceAssistant({ musicPlayerRef }) {
       musicPlayerRef.current.pause();
       console.log("Pausing music via ref");
     }
-  };
-
-  const volumeUp = () => {
-    console.log("Volume turned up.");
-    // Implement volume up logic if possible
-  };
-
-  const volumeDown = () => {
-    console.log("Volume turned down.");
-    // Implement volume down logic if possible
-  };
-
-  const changeMusic = () => {
-    console.log("Changing music...");
-    // Implement music change logic if you have it
   };
 
   const getWeather = async () => {
@@ -83,17 +95,7 @@ export default function VoiceAssistant({ musicPlayerRef }) {
       window.speechSynthesis.speak(utterance);
     });
 
-  useEffect(() => {
-    if (!browserSupportsSpeechRecognition) return;
-    if (!listening) {
-      SpeechRecognition.startListening({
-        continuous: true,
-        language: "en-US",
-        interimResults: true,
-      });
-    }
-  }, [listening, browserSupportsSpeechRecognition]);
-
+  // Listen for "jarvis" keyword to activate assistant
   useEffect(() => {
     if (activated) return;
     if (!transcript) return;
@@ -142,21 +144,17 @@ export default function VoiceAssistant({ musicPlayerRef }) {
     return "Sorry, I didn't get that. Can you please repeat?";
   };
 
-  // --- Global audio fade logic ---
+  // Global audio fade logic when activated
   useEffect(() => {
-    // Get all audio elements on page
     const audios = Array.from(document.querySelectorAll("audio"));
 
     if (activated) {
-      // On activate, store original volumes and start fade down
       audios.forEach((audio) => {
         if (!originalVolumesRef.current.has(audio)) {
           originalVolumesRef.current.set(audio, audio.volume);
         }
       });
     } else {
-      // On deactivate, fade back to original volume
-      // If we haven't stored original volume, just ignore
       if (originalVolumesRef.current.size === 0) return;
     }
 
@@ -182,7 +180,6 @@ export default function VoiceAssistant({ musicPlayerRef }) {
       if (stillFading) {
         fadeAnimationRef.current = requestAnimationFrame(fadeVolumes);
       } else {
-        // If deactivated, clear stored volumes after fade up completes
         if (!activated) {
           originalVolumesRef.current.clear();
         }
@@ -198,6 +195,7 @@ export default function VoiceAssistant({ musicPlayerRef }) {
     };
   }, [activated]);
 
+  // Process commands and handle inactivity timeout
   useEffect(() => {
     if (!activated) return;
 
@@ -206,7 +204,7 @@ export default function VoiceAssistant({ musicPlayerRef }) {
 
     inactivityTimeoutRef.current = setTimeout(async () => {
       if (!speakingRef.current) {
-        await speak("goodbye. focus on your ride");
+        await speak("Goodbye. Focus on your ride.");
         setActivated(false);
         resetTranscript();
       }
@@ -234,7 +232,6 @@ export default function VoiceAssistant({ musicPlayerRef }) {
         }
 
         const responseFromCommand = await handleCommand(text);
-
         const response = responseFromCommand || getBotResponse(text);
 
         await speak(response);
@@ -258,56 +255,51 @@ export default function VoiceAssistant({ musicPlayerRef }) {
 
   return (
     <>
-      {/* New full screen black overlay behind everything when activated */}
       {activated && (
-        <div
-          aria-hidden="true"
-          style={{
-            position: "fixed",
-            top: -670,
-            left: 0,
-            width: "100vw",
-            height: "100vh",
-            backgroundColor: "rgba(10, 9, 9, 0.9)",
-            backdropFilter: "blur(10px)",
-            zIndex: 9997,
-            pointerEvents: "none",
-          }}
-        />
-      )}
-
-      {activated && (
-        <div
-          aria-hidden="true"
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            zIndex: 9998,
-          }}
-        />
-      )}
-
-      {activated && (
-        <div
-          aria-label="Voice assistant listening indicator"
-          style={{
-            position: "fixed",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -275%)",
-            width: 160,
-            height: 160,
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle at center, #00fff7 0%, #0066cc 70%)",
-            boxShadow:
-              "0 0 30px #00fff7, inset 5px 5px 20px #00fff7, inset -5px -5px 20px #0066cc",
-            animation: "pulse 2.5s infinite ease-in-out",
-            zIndex: 10000,
-            pointerEvents: "none",
-          }}
-        />
+        <>
+          <div
+            aria-hidden="true"
+            style={{
+              position: "fixed",
+              top: -670,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              backgroundColor: "rgba(10, 9, 9, 0.9)",
+              backdropFilter: "blur(10px)",
+              zIndex: 9997,
+              pointerEvents: "none",
+            }}
+          />
+          <div
+            aria-hidden="true"
+            style={{
+              position: "fixed",
+              inset: 0,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              zIndex: 9998,
+            }}
+          />
+          <div
+            aria-label="Voice assistant listening indicator"
+            style={{
+              position: "fixed",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -275%)",
+              width: 160,
+              height: 160,
+              borderRadius: "50%",
+              background:
+                "radial-gradient(circle at center, #00fff7 0%, #0066cc 70%)",
+              boxShadow:
+                "0 0 30px #00fff7, inset 5px 5px 20px #00fff7, inset -5px -5px 20px #0066cc",
+              animation: "pulse 2.5s infinite ease-in-out",
+              zIndex: 10000,
+              pointerEvents: "none",
+            }}
+          />
+        </>
       )}
 
       {!activated && (

@@ -14,6 +14,7 @@ import TopNav from "@/components/layout/top-nav";
 const defaultSettings = {
   darkMode: true,
   voicePrompt: true,
+  micPermissionGranted: false,
   units: "kmh",
   owmKey: "6bf23a460498b5e80155f16e12e6d455",
   gmapsKey: "",
@@ -109,6 +110,31 @@ export default function SettingsPage() {
               onCheckedChange={(v) =>
                 setSettings((s) => ({ ...s, voicePrompt: v }))
               }
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="micPermissionGranted" className="text-[#E0FFFF]">
+              Enable Microphone Access
+            </Label>
+            <Switch
+              id="micPermissionGranted"
+              checked={settings.micPermissionGranted}
+              onCheckedChange={async (enabled) => {
+                setSettings((s) => ({ ...s, micPermissionGranted: enabled }));
+
+                if (enabled) {
+                  try {
+                    // Request mic access permission by starting listening once
+                    await navigator.mediaDevices.getUserMedia({ audio: true });
+                    // Alternatively, if you use SpeechRecognition lib, startListening once:
+                    // SpeechRecognition.startListening({ continuous: false });
+                  } catch (err) {
+                    alert("Microphone access denied or error: " + err.message);
+                    // Revert toggle if permission denied
+                    setSettings((s) => ({ ...s, micPermissionGranted: false }));
+                  }
+                }
+              }}
             />
           </div>
 
