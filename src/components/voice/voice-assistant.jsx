@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useRef } from "react";
 import SpeechRecognition, {
   useSpeechRecognition,
@@ -8,7 +10,8 @@ import { faMicrophone } from "@fortawesome/free-solid-svg-icons";
 
 export default function VoiceAssistant({ musicPlayerRef }) {
   const [activated, setActivated] = useState(false);
-  const [micPermissionGranted, setMicPermissionGranted] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const [listeningActive, setListeningActive] = useState(false); // New state to toggle listening
 
   const {
     transcript,
@@ -22,43 +25,46 @@ export default function VoiceAssistant({ musicPlayerRef }) {
   const lastProcessedRef = useRef("");
   const processTimeoutRef = useRef(null);
   const inactivityTimeoutRef = useRef(null);
-
-  // --- Volume fading refs ---
   const fadeAnimationRef = useRef(null);
-  // Map to store original volumes of all audios
   const originalVolumesRef = useRef(new Map());
 
-  // Target fade volume when Jarvis is activated
   const FADE_VOLUME = 0.06;
   const FADE_SPEED = 0.2;
 
-  // Request mic permission once on mount
-  useEffect(() => {
-    async function requestMicPermission() {
+  // Toggle listening and handle mic permission request
+  const toggleListening = async () => {
+    if (!listeningActive) {
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
-        setMicPermissionGranted(true);
-        console.log("Microphone permission granted");
+        SpeechRecognition.startListening({
+          continuous: true,
+          language: "en-US",
+          interimResults: true,
+        });
+        setListeningActive(true);
+        setPermissionDenied(false);
       } catch (err) {
-        setMicPermissionGranted(false);
-        console.log("Microphone permission denied or error:", err);
+        setPermissionDenied(true);
+        console.warn("Microphone permission denied or error:", err);
       }
+    } else {
+      SpeechRecognition.stopListening();
+      resetTranscript();
+      setListeningActive(false);
+      setActivated(false);
     }
-    requestMicPermission();
-  }, []);
+  };
 
-  // Start listening when permission granted and not already listening
+  // Activate assistant only when "jarvis" is detected in transcript
   useEffect(() => {
-    if (!browserSupportsSpeechRecognition) return;
-    if (!listening && micPermissionGranted) {
-      SpeechRecognition.startListening({
-        continuous: true,
-        language: "en-US",
-        interimResults: true,
-      });
+    if (!activated && transcript.toLowerCase().includes("jarvis")) {
+      setActivated(true);
+      resetTranscript();
+      speak("Hi, I'm Jarvis. How can I help you?");
     }
-  }, [listening, browserSupportsSpeechRecognition, micPermissionGranted]);
+  }, [transcript, activated, resetTranscript]);
 
+  // Existing functions unchanged
   const playMusic = () => {
     if (musicPlayerRef?.current?.play) {
       musicPlayerRef.current.play();
@@ -95,19 +101,6 @@ export default function VoiceAssistant({ musicPlayerRef }) {
       window.speechSynthesis.speak(utterance);
     });
 
-  // Listen for "jarvis" keyword to activate assistant
-  useEffect(() => {
-    if (activated) return;
-    if (!transcript) return;
-
-    const text = transcript.toLowerCase();
-    if (text.includes("jarvis")) {
-      setActivated(true);
-      speak("Hi, I'm Jarvis. How can I help you?");
-      resetTranscript();
-    }
-  }, [transcript, activated, resetTranscript]);
-
   const handleCommand = async (text) => {
     if (text.includes("play music")) {
       playMusic();
@@ -116,24 +109,22 @@ export default function VoiceAssistant({ musicPlayerRef }) {
       pauseMusic();
       return "Music stopped.";
     } else if (text.includes("volume up")) {
-      musicPlayerRef?.current?.volumeUp();
+      musicPlayerRef?.current?.volumeUp?.();
       return "Turning volume up.";
     } else if (text.includes("volume down")) {
-      musicPlayerRef?.current?.volumeDown();
+      musicPlayerRef?.current?.volumeDown?.();
       return "Turning volume down.";
     } else if (
-      text.includes("what's the weather") ||
-      text.includes("weather")
+      text.includes("weather") ||
+      text.includes("what's the weather")
     ) {
       return await getWeather();
     }
-    return "Sorry, I didn't understand that command.";
+    return "";
   };
 
   const getBotResponse = (input) => {
-    if (input.includes("hello") || input.includes("hi")) {
-      return "";
-    }
+    if (input.includes("hello") || input.includes("hi")) return "";
     if (input.includes("time")) {
       const now = new Date();
       return `It is ${now.toLocaleTimeString([], {
@@ -144,7 +135,7 @@ export default function VoiceAssistant({ musicPlayerRef }) {
     return "Sorry, I didn't get that. Can you please repeat?";
   };
 
-  // Global audio fade logic when activated
+  // Fade volumes for all audios on activation/deactivation
   useEffect(() => {
     const audios = Array.from(document.querySelectorAll("audio"));
 
@@ -160,10 +151,8 @@ export default function VoiceAssistant({ musicPlayerRef }) {
 
     function fadeVolumes() {
       let stillFading = false;
-
       audios.forEach((audio) => {
         if (!audio) return;
-
         const originalVolume = originalVolumesRef.current.get(audio) ?? 1;
         const targetVolume = activated ? FADE_VOLUME : originalVolume;
         const currentVolume = audio.volume;
@@ -179,23 +168,19 @@ export default function VoiceAssistant({ musicPlayerRef }) {
 
       if (stillFading) {
         fadeAnimationRef.current = requestAnimationFrame(fadeVolumes);
-      } else {
-        if (!activated) {
-          originalVolumesRef.current.clear();
-        }
+      } else if (!activated) {
+        originalVolumesRef.current.clear();
       }
     }
 
     fadeVolumes();
 
     return () => {
-      if (fadeAnimationRef.current) {
+      if (fadeAnimationRef.current)
         cancelAnimationFrame(fadeAnimationRef.current);
-      }
     };
   }, [activated]);
 
-  // Process commands and handle inactivity timeout
   useEffect(() => {
     if (!activated) return;
 
@@ -228,6 +213,8 @@ export default function VoiceAssistant({ musicPlayerRef }) {
           await speak("Goodbye! Stopping voice assistant.");
           setActivated(false);
           resetTranscript();
+          SpeechRecognition.stopListening();
+          setListeningActive(false);
           return;
         }
 
@@ -245,6 +232,19 @@ export default function VoiceAssistant({ musicPlayerRef }) {
     };
   }, [finalTranscript, activated, resetTranscript]);
 
+  // Check mic permission on mount (no change)
+  useEffect(() => {
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: "microphone" }).then((result) => {
+        if (result.state === "granted") {
+          setPermissionDenied(false);
+        } else if (result.state === "denied") {
+          setPermissionDenied(true);
+        }
+      });
+    }
+  }, []);
+
   if (!browserSupportsSpeechRecognition) {
     return (
       <div style={{ color: "red", padding: 10 }}>
@@ -255,55 +255,7 @@ export default function VoiceAssistant({ musicPlayerRef }) {
 
   return (
     <>
-      {activated && (
-        <>
-          <div
-            aria-hidden="true"
-            style={{
-              position: "fixed",
-              top: -670,
-              left: 0,
-              width: "100vw",
-              height: "100vh",
-              backgroundColor: "rgba(10, 9, 9, 0.9)",
-              backdropFilter: "blur(10px)",
-              zIndex: 9997,
-              pointerEvents: "none",
-            }}
-          />
-          <div
-            aria-hidden="true"
-            style={{
-              position: "fixed",
-              inset: 0,
-              backgroundColor: "rgba(0,0,0,0.5)",
-              zIndex: 9998,
-            }}
-          />
-          <div
-            aria-label="Voice assistant listening indicator"
-            style={{
-              position: "fixed",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -275%)",
-              width: 160,
-              height: 160,
-              borderRadius: "50%",
-              background:
-                "radial-gradient(circle at center, #00fff7 0%, #0066cc 70%)",
-              boxShadow:
-                "0 0 30px #00fff7, inset 5px 5px 20px #00fff7, inset -5px -5px 20px #0066cc",
-              animation: "pulse 2.5s infinite ease-in-out",
-              zIndex: 10000,
-              pointerEvents: "none",
-            }}
-          />
-        </>
-      )}
-
-      {!activated && (
-        <div>
+      <div>
           <button
             type="button"
             style={{
@@ -357,7 +309,100 @@ export default function VoiceAssistant({ musicPlayerRef }) {
           >
             Voice Assistant
           </p>
-        </div>
+        </div>{/* Mic toggle button */}
+      {/* Only show button if not listening */}
+      {!listeningActive && (
+        <button
+          type="button"
+          onClick={toggleListening}
+          style={{
+            position: "fixed",
+            bottom: 20,
+            right: 50,
+            background: "#000000",
+            color: "#00fff7",
+            padding: 12,
+            borderRadius: 30,
+            maxWidth: 280,
+            fontFamily: "sans-serif",
+            zIndex: 10000,
+            cursor: "pointer",
+            userSelect: "none",
+            border: "none",
+            fontSize: 14,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+          title="Start Listening"
+        >
+          Start Listening
+        </button>
+      )}
+
+      {/* Show permission denied message */}
+      {permissionDenied && (
+        <p
+          style={{
+            position: "fixed",
+            bottom: 60,
+            left: 50,
+            color: "red",
+            maxWidth: 280,
+            fontFamily: "sans-serif",
+            zIndex: 10000,
+          }}
+        >
+          Please allow microphone access for voice assistant to work.
+        </p>
+      )}
+
+      {/* Your existing assistant UI */}
+      {activated && (
+        <>
+          <div
+            aria-hidden="true"
+            style={{
+              position: "fixed",
+              top: -670,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              backgroundColor: "rgba(10, 9, 9, 0.9)",
+              backdropFilter: "blur(10px)",
+              zIndex: 9997,
+              pointerEvents: "none",
+            }}
+          />
+          <div
+            aria-hidden="true"
+            style={{
+              position: "fixed",
+              inset: 0,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              zIndex: 9998,
+            }}
+          />
+          <div
+            aria-label="Voice assistant listening indicator"
+            style={{
+              position: "fixed",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -275%)",
+              width: 160,
+              height: 160,
+              borderRadius: "50%",
+              background:
+                "radial-gradient(circle at center, #00fff7 0%, #0066cc 70%)",
+              boxShadow:
+                "0 0 30px #00fff7, inset 5px 5px 20px #00fff7, inset -5px -5px 20px #0066cc",
+              animation: "pulse 2.5s infinite ease-in-out",
+              zIndex: 10000,
+              pointerEvents: "none",
+            }}
+          />
+        </>
       )}
 
       <style>{`
@@ -379,3 +424,4 @@ export default function VoiceAssistant({ musicPlayerRef }) {
     </>
   );
 }
+
