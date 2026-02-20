@@ -79,7 +79,7 @@ export default function HomePage() {
                   "0 0 6px rgba(0,255,247,0.8), 0 0 18px rgba(31,81,255,0.6)",
               }}
             >
-              <Typewriter text=" AI Co-Pilot for Driver Safety" />
+              <Typewriter text=" AI Co-Pilot for Driver Safety " />
             </h1>
 
             <Link to="/dashboard">
