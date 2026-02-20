@@ -99,19 +99,24 @@ function Car() {
     <meshStandardMaterial color={"#ffffcc"} emissive={"#ffffaa"} />
   </mesh>
 
-  {/* Wheels */}
-  {[ -0.7, 0.7 ].map(x => (
-    <group key={x}>
-      <mesh position={[x, -0.2, 1]} castShadow receiveShadow>
-        <cylinderGeometry args={[0.3, 0.3, 0.15, 32]} />
-        <meshStandardMaterial color={"#222"} />
-      </mesh>
-      <mesh position={[x, -0.2, -1]} castShadow receiveShadow>
-        <cylinderGeometry args={[0.3, 0.3, 0.15, 32]} />
-        <meshStandardMaterial color={"#222"} />
-      </mesh>
-    </group>
-  ))}
+{/* Wheels */}
+{[-0.7, 0.7].map((x) => (
+  <group key={x}>
+    {[1, -1].map((z) => (
+      <group
+        key={z}
+        position={[x, -0.2, z]}
+        rotation={[Math.PI / 2, 0, Math.PI / 2]} 
+      >
+        {/* Tire */}
+        <mesh castShadow receiveShadow>
+          <cylinderGeometry args={[0.32, 0.32, 0.18, 32]} />
+          <meshStandardMaterial color="#47464b" />
+        </mesh>
+      </group>
+    ))}
+  </group>
+))}
 
   {/* Tail lights */}
   <mesh position={[-0.5, 0.15, -1.5]} castShadow receiveShadow>

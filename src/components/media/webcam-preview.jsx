@@ -8,8 +8,8 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
   const lastFocusPercentRef = useRef(null);
 
   const STABLE_TIME_MS = 2000; // 2 seconds stable time required
-  const BLINK_MAX_FRAMES = 12; // max frames considered as a blink (~400ms at 30fps)
-  const MAX_CLOSED_FRAMES = 30 * 10; // 10 seconds max closed eye duration
+  const BLINK_MAX_FRAMES = 12; 
+  const MAX_CLOSED_FRAMES = 30 * 10; 
 
   const [status, setStatus] = useState("");
   const [isAlertActive, setIsAlertActive] = useState(false);
@@ -21,11 +21,9 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
   const CLOSED_EYE_FRAME_10S = 10 * 8;
 
   // Yawning detection thresholds
-  const MAR_THRESHOLD = 0.6; // mouth aspect ratio threshold for yawning
-  const YAWN_FRAME_THRESHOLD = 15; // frames required to confirm yawning (~0.5s at 30fps)
+  const MAR_THRESHOLD = 0.6; 
+  const YAWN_FRAME_THRESHOLD = 15; 
 
-  // Head-turn thresholds using degrees (±90 degrees)
-  // We will calculate headYaw and headPitch in degrees, so threshold is 90 degrees
   const HEAD_TURN_ANGLE_THRESHOLD = 90;
 
   const closedEyeFrames = useRef(0);
@@ -105,9 +103,6 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
     }
   }
 
-  // NEW function to calculate approximate yaw angle in degrees from landmarks
-  // Using nose tip and cheeks X coords (0 to 1), compute head yaw roughly:
-  // yawDegrees: negative = left turn, positive = right turn
   function getHeadYawDegrees(landmarks) {
     const noseX = landmarks[1].x;
     const leftCheekX = landmarks[33].x;
@@ -258,13 +253,9 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
             }, 5000);
           }
         } else {
-          // Head back within normal range: reset alert flags
           headTurnAlertSpoken.current = false;
         }
-        // --- END HEAD TURN logic ---
-
-        // ... rest of your existing onResults face detected logic ...
-
+       
         const leftEAR = calculateEAR(landmarks, true);
         const rightEAR = calculateEAR(landmarks, false);
         const currentEAR = (leftEAR + rightEAR) / 2;
@@ -306,7 +297,6 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
           lastFocusPercentRef.current = focusPercentRaw;
         } else {
           if (closedEyeFrames.current <= BLINK_MAX_FRAMES) {
-            // Blink detected: do NOT decrease focus, gently recover focus towards 100%
             lastFocusPercentRef.current =
               lastFocusPercentRef.current * (1 - alpha) + 100 * alpha;
           } else {
@@ -408,8 +398,6 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
           canvasCtx.fillText("", 10, 50);
         }
       } else {
-        // No face detected
-        // note: per your request, don't speak "Keep your eyes on the road" here
 
         if (!noFaceAlertSpoken.current && !noFaceCooldown.current) {
           if (onDrowsinessAlert) {
@@ -421,7 +409,6 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
               time: new Date().toLocaleTimeString(),
             });
           }
-          // speak removed intentionally
           noFaceAlertSpoken.current = true;
           noFaceCooldown.current = true;
           setTimeout(() => {
@@ -441,7 +428,7 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
         }
 
         if (onFocusChange) {
-          onFocusChange(0); // no face, no focus
+          onFocusChange(0); 
         }
 
         lastFocusPercentRef.current = 0;
@@ -460,7 +447,7 @@ export default function WebcamPreview({ onDrowsinessAlert, onFocusChange }) {
         setIsAlertActive(false);
       }
     };
-  }, []); // run once on mount
+  }, []); 
   return (
     <>
       <div style={{ textAlign: "center" }}>

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import SpeechRecognition, {
   useSpeechRecognition,
 } from "react-speech-recognition";
-import { getWeatherSummary } from "../panels/weather-panel"; // adjust path as needed
+import { getWeatherSummary } from "../panels/weather-panel"; 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faMicrophone } from "@fortawesome/free-solid-svg-icons";
 
