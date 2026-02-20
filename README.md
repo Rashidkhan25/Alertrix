@@ -1,4 +1,4 @@
-# Eventoria
+# Alertix
 
 A fully responsive and intelligent AI-driven co-pilot system built to assist drivers with navigation, safety alerts, and driving recommendations in real-time.
 This platform helps drivers stay informed, avoid hazards, and improve driving efficiency.
